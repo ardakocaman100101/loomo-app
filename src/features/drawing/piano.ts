@@ -246,7 +246,7 @@ export function getVerticalPianoRollMeasurements(
 
   const whiteHeight = height / whiteKeysCount
   const whiteWidth = Math.floor(Math.min(5 * whiteHeight, 150)) // max-width
-  const blackHeight = whiteHeight / 2
+  const blackHeight = whiteHeight * 0.70
   const blackWidth = Math.floor(whiteWidth * (2 / 3))
   const whiteNoteSeparation = whiteHeight / 20
   const measurements: VerticalPianoRollMeasurements = {

@@ -24,6 +24,7 @@ export type GivenState = {
   // TODO: snap to measures
   selectedRange?: { start: number; end: number }
   game: boolean
+  zoomMode?: number
   player: Player
 }
 

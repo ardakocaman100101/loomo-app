@@ -17,7 +17,7 @@ import {
 import { MidiStateEvent, SongSource } from '@/types'
 import clsx from 'clsx'
 import { useAtomValue } from 'jotai'
-import { AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react'
+import { AlertCircle, ArrowLeft, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { SettingsPanel, TopBar, TrackHUD } from './components'
@@ -110,6 +110,8 @@ export default function PlaySongPage() {
   const [settingsOpen, setSettingsPanel] = useState(false)
   const [isMidiModalOpen, setMidiModal] = useState(false)
   const [statsVisible, setStatsVisible] = useState(true)
+  const zoomModes = [25, 32, 49, 61, 76, 88]
+  const [zoomIndex, setZoomIndex] = useState(2)
   const playerState = usePlayerState()
   const synth = useLazyStableRef(() => getSynthStub('acoustic_grand_piano'))
   let { data: song, error, isLoading, mutate } = useSong(id, source)
@@ -392,6 +394,20 @@ export default function PlaySongPage() {
               />
             </div>
             {statsVisible && <StatsPopup />}
+            <div className="absolute left-4 top-20 z-10 flex flex-col gap-2">
+              <button
+                className="cursor-pointer rounded-full bg-black/30 p-2 text-white transition hover:bg-black/50 pointer-events-auto"
+                onClick={() => setZoomIndex(i => Math.max(0, i - 1))}
+              >
+                <ZoomIn className="h-5 w-5" />
+              </button>
+              <button
+                className="cursor-pointer rounded-full bg-black/30 p-2 text-white transition hover:bg-black/50 pointer-events-auto"
+                onClick={() => setZoomIndex(i => Math.min(zoomModes.length - 1, i + 1))}
+              >
+                <ZoomOut className="h-5 w-5" />
+              </button>
+            </div>
           </>
         )}
         <div
@@ -409,6 +425,7 @@ export default function PlaySongPage() {
             selectedRange={selectedRange}
             getTime={() => player.getTime()}
             enableTouchscroll={songConfig.visualization === 'falling-notes'}
+            zoomMode={zoomModes[zoomIndex]}
           />
         </div>
       </div>

@@ -36,19 +36,13 @@ const colors = {
   rangeSelectionFill: '#44b22e',
 }
 
-/**
- *
- */
 function getActiveNotes(state: State, inViewNotes: SongNote[]): Map<number, string> {
   const activeNotes = new Map<number, string>()
+  const pressFeedback = state.player.pressFeedback
   for (let midiNote of midiState.getPressedNotes().keys()) {
-    activeNotes.set(midiNote, 'grey')
+    activeNotes.set(midiNote, pressFeedback.get(midiNote) ?? 'grey')
   }
-  for (let note of inViewNotes) {
-    if (isPlayingNote(state, note)) {
-      activeNotes.set(note.midiNote, getNoteColor(state, note))
-    }
-  }
+
   return activeNotes
 }
 
@@ -81,8 +75,8 @@ function deriveState(state: GivenState): State {
     ? (items.filter((i) => i.type === 'note') as SongNote[])
     : ([{ midiNote: 21 }, { midiNote: 108 }] as SongNote[])
 
-  let minNotes = 36
-  if (state.height > state.windowWidth) {
+  let minNotes = state.zoomMode ?? 36
+  if (state.zoomMode === undefined && state.height > state.windowWidth) {
     if (state.height > 800) minNotes = 88
     else if (state.height > 600) minNotes = 72
     else if (state.height > 500) minNotes = 60
@@ -96,8 +90,17 @@ function deriveState(state: GivenState): State {
   const pianoMeasurements = getVerticalPianoRollMeasurements(state.height, { startNote, endNote })
   const pianoLeftX = 0
   const pianoWidth = pianoMeasurements.whiteWidth + 5
-  // Notes mathematically touch the key exactly at the right edge of piano keys
-  const noteHitX = pianoWidth
+  // Shift hit line away from piano by 50 pixels to provide visual clearance.
+  const noteHitX = pianoWidth + 50
+
+  const averageLaneHeight = state.height / minNotes
+  const averageCircleRadius = (averageLaneHeight / 2) - 1
+  // Perfect tolerance inside the circle, exactly matching the radius in terms of MS
+  // Multiplied by 2.5 to make it more forgiving and easier to get green.
+  const perfectRangeMs = (averageCircleRadius / state.pps) * 1000 * 1.5
+  // Yellow/purple boundary (e.g. 4 times the circle radius)
+  const goodRangeMs = perfectRangeMs * 4
+  state.player.setTolerance(perfectRangeMs, goodRangeMs)
 
   lastState = {
     ...state,
@@ -126,6 +129,7 @@ export function renderFallingVis(givenState: GivenState): void {
   const items = getFallingNoteItemsInView(state)
 
   renderOctaveRuler(state)
+  renderHitLine(state)
 
   for (let i of items) {
     if (i.type === 'measure') {
@@ -154,6 +158,19 @@ export function renderFallingVis(givenState: GivenState): void {
     state.pianoLeftX,
     getActiveNotes(state, items.filter((i) => i.type === 'note') as any),
   )
+}
+
+function renderHitLine(state: State) {
+  const { ctx, noteHitX, height } = state
+  ctx.save()
+  ctx.beginPath()
+  ctx.setLineDash([10, 10])
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'
+  ctx.lineWidth = 2
+  ctx.moveTo(noteHitX, 0)
+  ctx.lineTo(noteHitX, height)
+  ctx.stroke()
+  ctx.restore()
 }
 
 function getNoteColor(state: State, note: SongNote): string {
@@ -232,27 +249,31 @@ export function renderFallingNote(note: SongNote, state: State): void {
   ctx.save()
 
   // Modernized look: Gradient or sleek tail
+  // Tail starts from the center of the circle and goes rightwards.
   const tailEndX = posX + length - height / 2
   if (tailEndX > posX) {
     const grad = ctx.createLinearGradient(posX, posY, posX + length, posY)
     grad.addColorStop(0, color)
-    grad.addColorStop(1, 'rgba(40, 40, 40, 0.4)') // Fade out the tail
+    grad.addColorStop(1, color) // Solid tail instead of fading out
     ctx.fillStyle = grad
     ctx.strokeStyle = 'transparent'
 
+    ctx.globalAlpha = 0.8
+
     // Draw trail
-    roundRect(ctx, posX + height / 2, posY + height * 0.15, length - height / 2, height * 0.7, {
+    roundRect(ctx, posX, posY + height * 0.15, length, height * 0.7, {
       topRadius: height * 0.35,
       bottomRadius: height * 0.35
     })
+
+    ctx.globalAlpha = 1.0
   }
 
-  // Modernized look: Circle at the front (left-most side of the note which is the onset)
+  // Modernized look: Circle at the front centered at posX exactly
+  const circleRadius = height / 2
   ctx.fillStyle = color
   ctx.beginPath()
-  // Draw circle centered at posX + height/2
-  const circleRadius = height / 2
-  ctx.arc(posX + circleRadius, posY + circleRadius, circleRadius, 0, 2 * Math.PI)
+  ctx.arc(posX, posY + circleRadius, circleRadius, 0, 2 * Math.PI)
   ctx.fill()
 
   // Inner stroke to make it pop
@@ -276,7 +297,7 @@ export function renderFallingNote(note: SongNote, state: State): void {
       maxWidth,
     )
     ctx.font = `bold ${fontPx}px ${TEXT_FONT}`
-    ctx.fillText(noteText, posX + circleRadius - textWidth / 2, posY + circleRadius)
+    ctx.fillText(noteText, posX - textWidth / 2, posY + circleRadius)
   }
 
   ctx.restore()

@@ -17,6 +17,7 @@ type CanvasRendererProps = {
   selectedRange?: { start: number; end: number }
   enableTouchscroll?: boolean
   game?: boolean
+  zoomMode?: number
 }
 
 function CanvasRenderer({
@@ -29,6 +30,7 @@ function CanvasRenderer({
   constrictView = true,
   enableTouchscroll = false,
   game = false,
+  zoomMode,
 }: CanvasRendererProps) {
   const isReady = useRef(false)
   const { width, height, measureRef } = useSize()
@@ -67,6 +69,7 @@ function CanvasRenderer({
       canvasRect,
       selectedRange,
       game,
+      zoomMode,
       player,
     }
     render(state)

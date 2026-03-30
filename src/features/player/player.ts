@@ -12,8 +12,6 @@ function increment(x: number) {
 }
 
 type JotaiStore = ReturnType<typeof getDefaultStore>
-const GOOD_RANGE = 300
-const PERFECT_RANGE = 50
 
 interface Score {
   perfect: PrimitiveAtom<number>
@@ -91,14 +89,23 @@ export class Player {
   hitNotes: Set<SongNote> = new Set()
   missedNotes: Set<SongNote> = new Set()
   midiPressedNotes: Set<number> = new Set()
+  pressFeedback: Map<number, string> = new Map()
   lateNotes: Map<number, SongNote> = new Map()
   skipMissedNotes = false
   progressiveMode = atom(false)
   completedTracks = atom<Set<number>>(new Set<number>())
 
+  perfectRange = 50
+  goodRange = 300
+
   constructor(store: JotaiStore) {
     this.store = store
     midi.subscribe((midiEvent) => this.processMidiEvent(midiEvent))
+  }
+
+  setTolerance(perfect: number, good: number) {
+    this.perfectRange = perfect
+    this.goodRange = good
   }
 
   getSong() {
@@ -109,7 +116,7 @@ export class Player {
     let missedNotes = 0
     for (const [midiNote, missedNote] of this.lateNotes.entries()) {
       const diff = this.calcDiff(this.currentSongTime, missedNote.time)
-      if (diff > GOOD_RANGE) {
+      if (diff > this.goodRange) {
         this.lateNotes.delete(midiNote)
         missedNotes++
         this.missedNotes.add(missedNote)
@@ -134,6 +141,7 @@ export class Player {
 
     if (midiEvent.type === 'up') {
       this.midiPressedNotes.delete(midiNote)
+      this.pressFeedback.delete(midiNote)
       return
     } else {
       this.midiPressedNotes.add(midiNote)
@@ -141,6 +149,8 @@ export class Player {
 
     if (this.isPlaying()) {
       this.processScoreData(midiNote)
+    } else {
+      this.pressFeedback.set(midiNote, 'grey')
     }
   }
 
@@ -152,13 +162,15 @@ export class Player {
       const currentTime = this.currentSongTime
       this.lateNotes.delete(midiNote)
       const diff = this.calcDiff(currentTime, lateNote.time)
-      const isHit = diff < GOOD_RANGE
-      if (diff < PERFECT_RANGE) {
-        this.store.set(this.score.perfect, increment)
-      } else if (diff < GOOD_RANGE) {
-        this.store.set(this.score.good, increment)
-      }
+      const isHit = diff < this.goodRange
       if (isHit) {
+        if (diff < this.perfectRange) {
+          this.store.set(this.score.perfect, increment)
+          this.pressFeedback.set(midiNote, 'green')
+        } else {
+          this.store.set(this.score.good, increment)
+          this.pressFeedback.set(midiNote, 'purple')
+        }
         this.store.set(this.score.streak, increment)
         this.hitNotes.add(lateNote)
         if (this.skipMissedNotes) {
@@ -172,10 +184,14 @@ export class Player {
     const nextNote = this.getUpcomingNotes()?.find((note) => note.midiNote === midiNote)
     if (nextNote && !isHitNote(this, nextNote)) {
       const diff = this.calcDiff(nextNote.time, this.currentSongTime)
-      if (diff < GOOD_RANGE) {
-        diff < PERFECT_RANGE
-          ? this.store.set(this.score.perfect, increment)
-          : this.store.set(this.score.good, increment)
+      if (diff < this.goodRange) {
+        if (diff < this.perfectRange) {
+          this.store.set(this.score.perfect, increment)
+          this.pressFeedback.set(midiNote, 'green')
+        } else {
+          this.store.set(this.score.good, increment)
+          this.pressFeedback.set(midiNote, 'yellow')
+        }
 
         this.store.set(this.score.streak, increment)
         this.hitNotes.add(nextNote)
@@ -185,6 +201,7 @@ export class Player {
 
     this.store.set(this.score.error, increment)
     this.store.set(this.score.streak, 0)
+    this.pressFeedback.set(midiNote, 'red')
   }
 
   // Given two song timestamps, return their difference in milliseconds after adjusting for the bpm modifier
