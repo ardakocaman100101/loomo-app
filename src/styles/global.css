@@ -86,6 +86,18 @@
     src: url('fonts/Leland/Leland.otf') format('opentype');
     font-feature-settings: 'ccmp';
   }
+
+  .glow-perspective {
+    background: linear-gradient(to bottom, #131313 0%, #6d3bd7 40%, #131313 100%);
+    opacity: 0.4;
+    filter: blur(80px);
+  }
+  
+  .glass-card {
+    background: rgba(42, 42, 42, 0.4);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(149, 142, 160, 0.15);
+  }
 }
 
 @layer base {

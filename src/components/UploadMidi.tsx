@@ -5,9 +5,11 @@ import { useRef, useState } from 'react'
 export function UploadMidi({
     onUpload,
     className,
+    children,
 }: {
     onUpload?: (id: string) => void
     className?: string
+    children?: React.ReactNode
 }) {
     const inputRef = useRef<HTMLInputElement>(null)
     const [isUploading, setIsUploading] = useState(false)
@@ -51,8 +53,12 @@ export function UploadMidi({
                 disabled={isUploading}
                 className={className}
             >
-                <Upload className="mr-2 h-4 w-4" />
-                {isUploading ? 'Uploading...' : 'Upload MIDI'}
+                {children ? children : (
+                    <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        {isUploading ? 'Uploading...' : 'Upload MIDI'}
+                    </>
+                )}
             </button>
         </>
     )

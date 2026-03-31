@@ -32,7 +32,7 @@ function FooterLink({ href, children }: { href: string; children: React.ReactNod
 
 export function MarketingFooter() {
   return (
-    <footer className="bg-black py-12 dark:bg-black">
+    <footer className="bg-[#131313] py-12 dark:bg-[#131313]">
       <div className="mx-auto max-w-(--breakpoint-lg) px-6">
 
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
