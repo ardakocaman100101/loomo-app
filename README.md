@@ -1,8 +1,8 @@
-# [loophesia](http://loophesia.dev)
+# loomo
 
-A free and open-source webapp for learning to play MIDI Keyboard. You can practice multi-track songs and live looping. Plug in your MIDI keyboard for the optimal experience.
+An open-source web-app for just making music. You can practice multi-track songs and live looping. Plug in your MIDI keyboard for the optimal experience.
 
-loophesia is still being developed. I work full-time and learn keyboard and pads. I want to create a interactive tool for amateur music makers to practice multi track songs.  
+loomo is still being developed. I work full-time and learn keyboard and pads. I want to create a interactive tool for amateur music makers to practice multi track songs. Let's democratice making music together!
 
 I use another open source project called Sightread for music rendering and some graphics. I will soon develop further:
 - Show instrument
