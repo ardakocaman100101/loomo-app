@@ -365,6 +365,10 @@ export default function PlaySongPage() {
               isWaiting={waiting}
               settingsOpen={settingsOpen}
               statsVisible={statsVisible}
+              onClickStudio={() => {
+                player.stop()
+                navigate(`/studio?id=${encodeURIComponent(id)}&source=${source}`)
+              }}
             />
             <MidiModal isOpen={isMidiModalOpen} onClose={() => setMidiModal(false)} />
             {settingsOpen && (

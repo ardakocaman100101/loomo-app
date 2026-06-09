@@ -19,6 +19,11 @@ function getBase64Song(data: string): Song {
 }
 
 async function fetchSong(id: string, source: SongSource): Promise<Song> {
+  const editedMidi = persistence.getEditedMidi(id)
+  if (editedMidi) {
+    return getBase64Song(editedMidi)
+  }
+
   if (source === 'builtin') {
     const url = getBuiltinSongUrl(id)
     return fetch(url).then(handleSong)

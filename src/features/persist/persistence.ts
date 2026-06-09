@@ -341,3 +341,31 @@ export function getPersistedSongSettings(file: string) {
 export function setPersistedSongSettings(file: string, config: SongConfig) {
   return Storage.set(`${file}/settings`, config)
 }
+
+export function getEditedMidi(id: string): string | null {
+  return Storage.get<string>(`${id}/edited_midi`)
+}
+
+export function saveEditedMidi(id: string, base64Data: string) {
+  Storage.set(`${id}/edited_midi`, base64Data)
+}
+
+export function clearEditedMidi(id: string) {
+  Storage.delete(`${id}/edited_midi`)
+}
+
+export function registerCustomSketch(id: string, title: string, duration: number) {
+  const metadata: SongMetadata = {
+    id,
+    title,
+    file: id,
+    source: 'upload',
+    difficulty: 0,
+    duration,
+  }
+  const currentUploaded = store.get(uploadedSongsAtom)
+  if (!currentUploaded.some((s) => s.id === id)) {
+    store.set(uploadedSongsAtom, [...currentUploaded, metadata])
+  }
+}
+

@@ -10,18 +10,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-        <title>Loophesia</title>
+        <title>loomo</title>
         <meta name="author" content="Jake Fried" />
         <meta name="description" content="app for learning piano" />
 
         {/* Open Graph */}
-        <meta property="og:title" content="Loophesia" />
-        <meta property="og:site_name" content="Loophesia" />
+        <meta property="og:title" content="loomo" />
+        <meta property="og:site_name" content="loomo" />
         <meta property="og:description" content="app for learning piano" />
         <meta property="og:image" content="/images/mode_falling_notes_screenshot.png" />
         <meta
           property="og:image:alt"
-          content="Loophesia demo displaying falling notes visualization"
+          content="loomo demo displaying falling notes visualization"
         />
 
         {/* Twitter */}

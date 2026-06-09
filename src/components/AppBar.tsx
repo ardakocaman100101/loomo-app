@@ -64,6 +64,7 @@ export default function AppBar() {
             <NavLink href="/" active={location.pathname === '/'}>Home</NavLink>
             <NavLink href="/freeplay" active={location.pathname === '/freeplay'}>Practice</NavLink>
             <NavLink href="/songs" active={location.pathname === '/songs'}>Library</NavLink>
+            <NavLink href="/studio" active={location.pathname === '/studio'}>Studio</NavLink>
           </div>
 
           <div className="flex items-center gap-4">

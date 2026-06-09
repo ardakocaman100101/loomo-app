@@ -6,6 +6,7 @@ export default [
     index('./home/page.tsx'),
     // route('about', './about/page.tsx'), // Removed
     route('songs', './songs/page.tsx'),
+    route('studio', './studio/page.tsx'),
     ...prefix('training', [
       route('phrases', './training/phrases/page.tsx'),
       route('phrases', './training/speed/page.tsx'),
