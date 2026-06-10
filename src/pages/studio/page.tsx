@@ -6,6 +6,7 @@ import { getSynthStub, Synth, InstrumentName } from "@/features/synth";
 import gmInstruments from "@/features/synth/instruments";
 import { songToMidiBytes } from "@/features/studio/midi-encoder";
 import * as persistence from "@/features/persist/persistence";
+import midiState from "@/features/midi";
 import { bytesToBase64 } from "@/utils";
 import { mutate } from "swr";
 import { motion, AnimatePresence } from "motion/react";
@@ -33,8 +34,6 @@ import {
 import type { Song, SongNote, Track, Tracks } from "@/types";
 
 // Pitch helpers
-const MIN_MIDI = 36; // C2
-const MAX_MIDI = 96; // C7
 const ROW_HEIGHT = 28; // px
 
 const isBlackKey = (midiNote: number) => {
@@ -71,6 +70,45 @@ export default function Studio() {
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [activeTrack, setActiveTrack] = useState<number>(0);
   const [selectedNoteIndex, setSelectedNoteIndex] = useState<number | null>(null);
+
+  const [instrumentRange, setInstrumentRange] = useState(midiState.detectedRange);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (midiState.detectedRange !== instrumentRange) {
+        setInstrumentRange(midiState.detectedRange);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [instrumentRange]);
+
+  const { minMidi, maxMidi } = useMemo(() => {
+    let songStart = 60;
+    let songEnd = 60;
+    if (notes.length > 0) {
+      songStart = Math.min(...notes.map((n) => n.midiNote));
+      songEnd = Math.max(...notes.map((n) => n.midiNote));
+    }
+
+    if (!instrumentRange) {
+      // Default fallback (61 keys)
+      let k = Math.round(((songStart + songEnd) / 2 - 66) / 12);
+      k = Math.max(-1, Math.min(3, k));
+      return { minMidi: 36 + k * 12, maxMidi: 96 + k * 12 };
+    }
+
+    const songCenter = (songStart + songEnd) / 2;
+    const instrumentCenter = (instrumentRange.start + instrumentRange.end) / 2;
+
+    let k = Math.round((songCenter - instrumentCenter) / 12);
+    const minK = Math.ceil((21 - instrumentRange.start) / 12);
+    const maxK = Math.floor((108 - instrumentRange.end) / 12);
+    k = Math.max(minK, Math.min(maxK, k));
+
+    return {
+      minMidi: instrumentRange.start + k * 12,
+      maxMidi: instrumentRange.end + k * 12,
+    };
+  }, [notes, instrumentRange]);
   
   // History for Undo/Redo
   const [history, setHistory] = useState<{ notes: SongNote[]; tracks: Tracks }[]>([]);
@@ -393,7 +431,7 @@ export default function Studio() {
       // Moving
       const newTime = Math.max(0, startTime + deltaTime);
       const deltaKeys = Math.round(deltaX / KEY_WIDTH);
-      const newMidi = Math.min(MAX_MIDI, Math.max(MIN_MIDI, startMidi + deltaKeys));
+      const newMidi = Math.min(maxMidi, Math.max(minMidi, startMidi + deltaKeys));
       
       // Play audio feedback on pitch change
       if (newMidi !== note.midiNote) {
@@ -541,8 +579,8 @@ export default function Studio() {
       timeSignature: { numerator: 4, denominator: 4 },
       keySignature: "C",
       ppq: 480,
-      secondsToTicks: (s) => Math.round(s * 480 * (bpm / 60) * 2), // dummy mappings for the compiler
-      ticksToSeconds: (t) => t / (480 * (bpm / 60) * 2),
+      secondsToTicks: (s) => Math.round(s * 480 * (bpm / 60)), // dummy mappings for the compiler
+      ticksToSeconds: (t) => t / (480 * (bpm / 60)),
     };
 
     try {
@@ -619,7 +657,7 @@ export default function Studio() {
   // Piano roll vertical scroll keyboard setup
   const pianoKeys = useMemo(() => {
     const keys = [];
-    for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
+    for (let m = minMidi; m <= maxMidi; m++) {
       keys.push(m);
     }
     return keys;
@@ -977,12 +1015,12 @@ export default function Studio() {
                   const clickY = e.clientY - rect.top;
 
                   const timeSubdivision = Math.floor(clickY / zoomY);
-                  const midiNote = Math.min(
-                    MAX_MIDI,
-                    Math.max(MIN_MIDI, MIN_MIDI + Math.floor(clickX / KEY_WIDTH)),
+                  const noteMidi = Math.min(
+                    maxMidi,
+                    Math.max(minMidi, minMidi + Math.floor(clickX / KEY_WIDTH)),
                   );
 
-                  addNoteAt(midiNote, timeSubdivision);
+                  addNoteAt(noteMidi, timeSubdivision);
                 }}
                 className="relative cursor-crosshair select-none bg-[#131313]"
                 style={{
@@ -1003,7 +1041,7 @@ export default function Studio() {
                   
                   if (!isVisible) return null;
 
-                  const left = (note.midiNote - MIN_MIDI) * KEY_WIDTH;
+                  const left = (note.midiNote - minMidi) * KEY_WIDTH;
                   const top = timeToY(note.time);
                   const height = Math.max(20, timeToY(note.duration));
 

@@ -48,9 +48,9 @@ function getActiveNotes(state: State): Map<number, string> {
 }
 
 function isPlayingNote(state: State, note: SongNote) {
-  const baselineY = state.pianoTopY - 2
+  const baselineY = state.noteHitY
   const itemPos = getItemStartEnd(note, state)
-  return itemPos.start <= baselineY && itemPos.end > baselineY
+  return itemPos.end <= baselineY && itemPos.start > baselineY
 }
 
 function getViewport(state: Readonly<GivenState>): Viewport {
@@ -90,7 +90,7 @@ function deriveState(state: GivenState): State {
   const pianoMeasurements = getPianoRollMeasurements(state.windowWidth, { startNote, endNote })
   const pianoTopY = Math.max(0, state.height - pianoMeasurements.whiteHeight - 5)
   const pianoWidth = pianoMeasurements.pianoWidth
-  const noteHitY = pianoTopY
+  const noteHitY = pianoTopY - 40
 
   const averageLaneHeight = state.height / minNotes
   const averageCircleRadius = (averageLaneHeight / 2) - 1
@@ -117,60 +117,41 @@ function getKeyboardRange(
   songEnd: number,
   instrumentRange: { start: number; end: number } | null,
 ) {
-  const songSpan = songEnd - songStart
   if (!instrumentRange) {
     return { startNote: songStart, endNote: songEnd }
   }
 
-  const instrumentSpan = instrumentRange.end - instrumentRange.start
-  if (songSpan >= instrumentSpan) {
-    return { startNote: songStart, endNote: songEnd }
+  const songCenter = (songStart + songEnd) / 2
+  const instrumentCenter = (instrumentRange.start + instrumentRange.end) / 2
+
+  let k = Math.round((songCenter - instrumentCenter) / 12)
+  const minK = Math.ceil((21 - instrumentRange.start) / 12)
+  const maxK = Math.floor((108 - instrumentRange.end) / 12)
+  k = Math.max(minK, Math.min(maxK, k))
+
+  return { 
+    startNote: instrumentRange.start + k * 12, 
+    endNote: instrumentRange.end + k * 12 
   }
-
-  const desiredStart = Math.min(
-    Math.max(instrumentRange.start, songStart),
-    instrumentRange.end - instrumentSpan,
-  )
-  const startNote = desiredStart
-  const endNote = desiredStart + instrumentSpan
-
-  return { startNote, endNote }
 }
 
 function getFallingNoteItemsInView<T>(state: State): CanvasItem[] {
-  let startPred = (item: CanvasItem) => getItemStartEnd(item, state).end >= 0
-  let endPred = (item: CanvasItem) => getItemStartEnd(item, state).start > state.height
+  // Items are sorted by ascending time.
+  // Earliest items (small time) have the largest Y (below screen),
+  // latest items (large time) have the smallest Y (above screen).
+  // startPred: start collecting when the top of the note enters the bottom of the screen
+  let startPred = (item: CanvasItem) => getItemStartEnd(item, state).end <= state.height
+  // endPred: stop collecting when the bottom of the note is completely above the screen
+  let endPred = (item: CanvasItem) => getItemStartEnd(item, state).start < 0
   return getItemsInView(state, startPred, endPred)
 }
-
 
 export function renderFallingVis(givenState: GivenState): void {
   const state: State = deriveState(givenState)
   state.ctx.fillStyle = '#2e2e2e' // background color
   state.ctx.fillRect(0, 0, state.windowWidth, state.height)
 
-  // Debug first frame only
-  if (state.time < 0.1) {
-    console.log('=== FIRST FRAME DEBUG ===')
-    console.log('Total items:', state.items.length)
-    const notes = state.items.filter(i => i.type === 'note')
-    console.log('Notes in items:', notes.length)
-    if (notes.length > 0) {
-      console.log('Note time range:', Math.min(...notes.map(n => (n as any).time)), 'to', Math.max(...notes.map(n => (n as any).time)))
-      console.log('First 5 notes:', notes.slice(0, 5).map(n => ({ time: (n as any).time, midi: (n as any).midiNote })))
-    }
-  }
-
   const items = getFallingNoteItemsInView(state)
-
-  // Debug per-frame counts
-  if (state.time < 5) {
-    const noteItems = items.filter((i) => i.type === 'note')
-    const upcomingWindowStart = state.time
-    const upcomingWindowEnd = state.time + state.height / state.pps
-    const upcomingNotes = state.items.filter((i) => i.type === 'note' && (i as SongNote).time >= upcomingWindowStart && (i as SongNote).time <= upcomingWindowEnd)
-    console.log('Frame debug: itemsInView=', items.length, 'noteItemsInView=', noteItems.length, 'upcomingWindowNotes=', upcomingNotes.length, 'time=', state.time)
-  }
 
   renderOctaveRuler(state)
   renderHitLine(state)
@@ -205,17 +186,16 @@ export function renderFallingVis(givenState: GivenState): void {
 }
 
 function renderHitLine(state: State) {
-  const { ctx, noteHitY, windowWidth, pianoTopY } = state
+  const { ctx, noteHitY, windowWidth } = state
   ctx.save()
   
   // Dashed baseline just above the keyboard
-  const baselineY = pianoTopY - 2
   ctx.beginPath()
   ctx.setLineDash([8, 5])
   ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)'
   ctx.lineWidth = 3
-  ctx.moveTo(0, baselineY)
-  ctx.lineTo(windowWidth, baselineY)
+  ctx.moveTo(0, noteHitY)
+  ctx.lineTo(windowWidth, noteHitY)
   ctx.stroke()
   
   ctx.restore()
@@ -247,7 +227,7 @@ function renderRange(state: State) {
   const rectHeight = duration * pps
   ctx.fillStyle = colors.rangeSelectionFill
   ctx.globalAlpha = 0.5
-  ctx.fillRect(0, canvasY, state.windowWidth, rectHeight)
+  ctx.fillRect(0, canvasY - rectHeight, state.windowWidth, rectHeight)
   ctx.restore()
 }
 
@@ -292,26 +272,29 @@ export function renderFallingNote(note: SongNote, state: State): void {
 
   ctx.save()
 
-  const tailEndY = posY + length - width / 2
-  if (tailEndY > posY) {
-    const grad = ctx.createLinearGradient(posX, posY, posX, posY + length)
+  const circleRadius = Math.min(width / 2, keyHeight / 2)
+  const tailTopY = posY - length
+  
+  if (tailTopY < posY - circleRadius) {
+    const grad = ctx.createLinearGradient(posX, posY - circleRadius, posX, tailTopY)
     grad.addColorStop(0, color)
     grad.addColorStop(1, color)
     ctx.fillStyle = grad
     ctx.strokeStyle = 'transparent'
     ctx.globalAlpha = 0.8
 
-    roundRect(ctx, posX, posY + width * 0.15, width, length - width * 0.15, {
+    const rectTop = tailTopY
+    const rectHeight = length - circleRadius * 0.5
+    roundRect(ctx, posX, rectTop, width, rectHeight, {
       topRadius: width * 0.35,
-      bottomRadius: width * 0.35,
+      bottomRadius: 0,
     })
 
     ctx.globalAlpha = 1.0
   }
 
-  const circleRadius = Math.min(width / 2, keyHeight / 2)
   const circleCenterX = posX + width / 2
-  const circleCenterY = posY + circleRadius
+  const circleCenterY = posY - circleRadius
   ctx.fillStyle = color
   ctx.beginPath()
   ctx.arc(circleCenterX, circleCenterY, circleRadius, 0, 2 * Math.PI)
@@ -358,10 +341,9 @@ function renderMeasure(measure: SongMeasure, state: State): void {
 }
 
 function getItemStartEnd(item: CanvasItem, state: State): { start: number; end: number } {
-  const baselineY = state.pianoTopY - 2
   // Times are already in seconds from MIDI parser (tone.js), pps is pixels/second
-  const noteScreenY = baselineY - (item.time - state.time) * state.pps
-  const endY = noteScreenY + item.duration * state.pps
+  const noteScreenY = state.noteHitY - (item.time - state.time) * state.pps
+  const endY = noteScreenY - item.duration * state.pps
   return { start: noteScreenY, end: endY }
 }
 

@@ -19,7 +19,7 @@ export function songToMidiBytes(song: Partial<Song>): Uint8Array {
     midi.header.tempos = song.bpms.map((bpmEvent) => {
       const ticks = song.secondsToTicks 
         ? song.secondsToTicks(bpmEvent.time) 
-        : Math.round(bpmEvent.time * 480 * 2)
+        : Math.round(bpmEvent.time * 480 * (bpmEvent.bpm / 60))
       return {
         ticks,
         bpm: bpmEvent.bpm,
