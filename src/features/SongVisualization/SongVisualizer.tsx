@@ -80,7 +80,7 @@ function CanvasRenderer({
       className="absolute h-full w-full touch-none"
       ref={measureRef}
       onPointerMove={(e) => enableTouchscroll && touchscroll.handleMove(player, e.nativeEvent)}
-      onPointerDown={(e) => enableTouchscroll && touchscroll.handleDown(player, e.nativeEvent)}
+      onPointerDown={(e) => enableTouchscroll && touchscroll.handleDown(player, e.nativeEvent, canvasRect)}
       onPointerUp={(e) => enableTouchscroll && touchscroll.handleUp(player, e.nativeEvent)}
     >
       <Canvas ref={canvasRef as LegacyRef<HTMLCanvasElement>} render={renderCanvas} />

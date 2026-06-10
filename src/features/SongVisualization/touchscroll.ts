@@ -39,8 +39,8 @@ function decay(player: Player) {
 }
 
 let wasPlaying = false
-export function handleDown(player: Player, e: PointerEvent) {
-  if (intersectsWithPiano(e.clientX)) {
+export function handleDown(player: Player, e: PointerEvent, canvasRect: DOMRect) {
+  if (intersectsWithPiano({ x: e.clientX, y: e.clientY }, canvasRect)) {
     isDragging_ = false
     return
   }

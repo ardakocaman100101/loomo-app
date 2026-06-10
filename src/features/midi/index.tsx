@@ -162,6 +162,7 @@ class MidiState {
   keyPressedNotes = new Set<number>()
   listeners: Array<Function> = []
   detectedRange: { start: number; end: number } | null = null
+  observedRange: { start: number; end: number } | null = null
 
   updateDetectedRange() {
     let min = 21
@@ -170,7 +171,7 @@ class MidiState {
 
     enabledInputDevices.forEach((device) => {
       const name = device.name?.toLowerCase() || ''
-      if (name.includes('minilab') || name.includes('25')) {
+      if (name.includes('mini') || name.includes('25')) {
         min = 48 // C3
         max = 72 // C5
         found = true
@@ -187,9 +188,45 @@ class MidiState {
         max = 108 // C8
         found = true
       }
+
+      const digitMatch = name.match(/(\d+)(?=\D*$)/)
+      if (!found && digitMatch) {
+        const noteCount = parseInt(digitMatch[1], 10)
+        if (noteCount === 25) {
+          min = 48
+          max = 72
+          found = true
+        } else if (noteCount === 32) {
+          min = 45
+          max = 76
+          found = true
+        } else if (noteCount === 49) {
+          min = 36
+          max = 84
+          found = true
+        } else if (noteCount === 61) {
+          min = 36
+          max = 96
+          found = true
+        } else if (noteCount === 76) {
+          min = 24
+          max = 97
+          found = true
+        } else if (noteCount === 88) {
+          min = 21
+          max = 108
+          found = true
+        }
+      }
     })
 
-    this.detectedRange = found ? { start: min, end: max } : null
+    if (found) {
+      this.detectedRange = { start: min, end: max }
+    } else if (this.observedRange) {
+      this.detectedRange = this.observedRange
+    } else {
+      this.detectedRange = null
+    }
   }
 
   handleKeyDown(e: KeyboardEvent) {
@@ -260,7 +297,17 @@ class MidiState {
   press(note: number, velocity: number) {
     const time = Date.now()
     this.pressedNotes.set(note, { time, vel: velocity })
+    this.updateObservedRange(note)
     this.notify({ note, velocity, type: 'down', time })
+  }
+
+  updateObservedRange(note: number) {
+    const observedStart = this.observedRange?.start ?? note
+    const observedEnd = this.observedRange?.end ?? note
+    this.observedRange = {
+      start: Math.min(observedStart, note),
+      end: Math.max(observedEnd, note),
+    }
   }
   pressOutput(note: number, volume: number) {
     for (const output of enabledOutputDevices) {

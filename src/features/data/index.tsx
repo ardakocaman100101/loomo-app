@@ -55,6 +55,7 @@ async function fetchSong(id: string, source: SongSource): Promise<Song> {
   return Promise.reject(new Error(`Could not get song for ${id}, ${source}`))
 }
 
-export function useSong(id: string, source: SongSource): SWRResponse<Song, any, any> {
-  return useSWRImmutable([id, source], ([id, source]) => fetchSong(id, source))
+export function useSong(id?: string, source?: SongSource): SWRResponse<Song, any, any> {
+  const shouldFetch = typeof id === 'string' && id.length > 0 && typeof source === 'string' && source.length > 0
+  return useSWRImmutable(shouldFetch ? [id, source] : null, ([id, source]) => fetchSong(id, source))
 }

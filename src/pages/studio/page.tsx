@@ -56,11 +56,11 @@ export default function Studio() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const id = searchParams.get("id");
-  const source = searchParams.get("source") as any;
+  const source = searchParams.get("source") as SongSource | null;
 
-  // SWR hook to fetch existing song
-  const { data: loadedSong, isLoading } = useSong(id || "", source || "");
-  const songMeta = useSongMetadata(id || "", source || "");
+  // SWR hook to fetch existing song only when an ID/source is provided
+  const { data: loadedSong, isLoading } = useSong(id ?? undefined, source ?? undefined);
+  const songMeta = id && source ? useSongMetadata(id, source) : undefined;
 
   // Core state
   const [songName, setSongName] = useState("My Studio Sketch");
@@ -79,11 +79,14 @@ export default function Studio() {
   // Layout states
   const MIN_ZOOM = 8; // minimum px per 16th note
   const MAX_ZOOM = 64; // maximum px per 16th note
+  const KEY_WIDTH = 40;
+  const KEY_TOP_HEIGHT = 64;
+  const [zoomY, setZoomY] = useState<number>(32);
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey) {
       e.preventDefault();
       // deltaY > 0 means zoom out, <0 zoom in
-      setZoomX(prev => {
+      setZoomY(prev => {
         const step = -e.deltaY * 0.05; // adjust sensitivity
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + step));
         return newZoom;
@@ -263,18 +266,17 @@ export default function Studio() {
   }, []);
 
   // Time & Pixel coordinates mapping
-  const timeToX = useCallback((t: number) => {
+  const timeToY = useCallback((t: number) => {
     // 1 beat = 4 subdivisions (16th notes)
-    // subdivisions * zoomX
     const beats = t * (bpm / 60);
-    return beats * 4 * zoomX;
-  }, [bpm, zoomX]);
+    return beats * 4 * zoomY;
+  }, [bpm, zoomY]);
 
-  const xToTime = useCallback((x: number) => {
-    const subdivisions = x / zoomX;
+  const yToTime = useCallback((y: number) => {
+    const subdivisions = y / zoomY;
     const beats = subdivisions / 4;
     return beats * (60 / bpm);
-  }, [bpm, zoomX]);
+  }, [bpm, zoomY]);
 
   // Subdivision time helper
   const getSubdivisionTime = useCallback((subdivision: number) => {
@@ -377,7 +379,7 @@ export default function Studio() {
     const deltaY = e.clientY - startY;
 
     // Convert pixels to subdivisions
-    const deltaSubdivisions = Math.round(deltaX / zoomX);
+    const deltaSubdivisions = Math.round(deltaY / zoomY);
     const deltaTime = deltaSubdivisions * (60 / bpm / 4);
 
     const updatedNotes = [...notes];
@@ -390,8 +392,8 @@ export default function Studio() {
     } else {
       // Moving
       const newTime = Math.max(0, startTime + deltaTime);
-      const deltaRows = -Math.round(deltaY / ROW_HEIGHT);
-      const newMidi = Math.min(MAX_MIDI, Math.max(MIN_MIDI, startMidi + deltaRows));
+      const deltaKeys = Math.round(deltaX / KEY_WIDTH);
+      const newMidi = Math.min(MAX_MIDI, Math.max(MIN_MIDI, startMidi + deltaKeys));
       
       // Play audio feedback on pitch change
       if (newMidi !== note.midiNote) {
@@ -617,31 +619,31 @@ export default function Studio() {
   // Piano roll vertical scroll keyboard setup
   const pianoKeys = useMemo(() => {
     const keys = [];
-    for (let m = MAX_MIDI; m >= MIN_MIDI; m--) {
+    for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
       keys.push(m);
     }
     return keys;
   }, []);
 
-  const totalGridWidth = useMemo(() => {
-    // 16th subdivisions in total duration
+  const totalGridWidth = useMemo(() => pianoKeys.length * KEY_WIDTH, [pianoKeys.length]);
+  const totalGridHeight = useMemo(() => {
     const totalSubdivisions = Math.ceil(totalDuration * (bpm / 60) * 4);
-    return totalSubdivisions * zoomX;
-  }, [totalDuration, bpm, zoomX]);
+    return totalSubdivisions * zoomY;
+  }, [totalDuration, bpm, zoomY]);
 
   // CSS variables for background repeating grid lines
   const gridBackgroundStyle = useMemo(() => {
     return {
-      "--zoomX": `${zoomX}px`,
+      "--zoomY": `${zoomY}px`,
       backgroundImage: `
-        repeating-linear-gradient(90deg, rgba(229, 226, 225, 0.03) 0px, rgba(229, 226, 225, 0.03) 1px, transparent 1px, transparent var(--zoomX)),
-        repeating-linear-gradient(90deg, rgba(229, 226, 225, 0.08) 0px, rgba(229, 226, 225, 0.08) 1px, transparent 1px, transparent calc(var(--zoomX) * 4)),
-        repeating-linear-gradient(90deg, rgba(208, 188, 255, 0.2) 0px, rgba(208, 188, 255, 0.2) 2px, transparent 2px, transparent calc(var(--zoomX) * 16)),
-        repeating-linear-gradient(0deg, rgba(229, 226, 225, 0.03) 0px, rgba(229, 226, 225, 0.03) 1px, transparent 1px, transparent ${ROW_HEIGHT}px)
+        repeating-linear-gradient(180deg, rgba(229, 226, 225, 0.03) 0px, rgba(229, 226, 225, 0.03) 1px, transparent 1px, transparent var(--zoomY)),
+        repeating-linear-gradient(180deg, rgba(229, 226, 225, 0.08) 0px, rgba(229, 226, 225, 0.08) 1px, transparent 1px, transparent calc(var(--zoomY) * 4)),
+        repeating-linear-gradient(180deg, rgba(208, 188, 255, 0.2) 0px, rgba(208, 188, 255, 0.2) 2px, transparent 2px, transparent calc(var(--zoomY) * 16)),
+        repeating-linear-gradient(90deg, rgba(229, 226, 225, 0.03) 0px, rgba(229, 226, 225, 0.03) 1px, transparent 1px, transparent ${KEY_WIDTH}px)
       `,
-      backgroundSize: `auto ${ROW_HEIGHT}px`,
+      backgroundSize: `${KEY_WIDTH}px auto`,
     } as React.CSSProperties;
-  }, [zoomX]);
+  }, [zoomY]);
 
   // Selected note details
   const selectedNote = selectedNoteIndex !== null ? notes[selectedNoteIndex] : null;
@@ -918,9 +920,9 @@ export default function Studio() {
                 {[12, 16, 24, 32].map((z) => (
                   <button
                     key={z}
-                    onClick={() => setZoomX(z)}
+                    onClick={() => setZoomY(z)}
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      zoomX === z ? "bg-[#d0bcff] text-[#131313]" : "text-white/60 hover:text-white"
+                      zoomY === z ? "bg-[#d0bcff] text-[#131313]" : "text-white/60 hover:text-white"
                     }`}
                   >
                     {z === 12 ? "S" : z === 16 ? "M" : z === 24 ? "L" : "XL"}
@@ -933,16 +935,19 @@ export default function Studio() {
           {/* Main Grid viewport */}
           <div className="flex-1 overflow-auto relative">
             <div
-              className="relative flex"
+              className="relative"
               style={{
-                height: `${pianoKeys.length * ROW_HEIGHT}px`,
-                width: `${70 + totalGridWidth}px`,
+                width: `${totalGridWidth}px`,
+                height: `${KEY_TOP_HEIGHT + totalGridHeight}px`,
               }}
             >
-              {/* Sticky Piano Keys column */}
+              {/* Sticky Piano Keys row */}
               <div
-                className="sticky left-0 top-0 z-20 w-[70px] flex flex-col border-r border-[#353534] bg-[#1e1e1e]"
-                style={{ height: `${pianoKeys.length * ROW_HEIGHT}px` }}
+                className="sticky top-0 left-0 z-20 flex border-b border-[#353534] bg-[#1e1e1e]"
+                style={{
+                  width: `${totalGridWidth}px`,
+                  height: `${KEY_TOP_HEIGHT}px`,
+                }}
               >
                 {pianoKeys.map((key) => {
                   const isBlack = isBlackKey(key);
@@ -952,12 +957,13 @@ export default function Studio() {
                       onMouseDown={() => handleKeyMouseDown(key)}
                       onMouseUp={() => handleKeyMouseUp(key)}
                       onMouseLeave={() => handleKeyMouseUp(key)}
-                      className={`h-[28px] border-b border-[#353534]/30 flex items-center justify-between px-1.5 cursor-pointer transition-colors active:bg-[#a078ff]/30 ${
-                        isBlack ? "bg-black text-white/50 text-[9px]" : "bg-white text-black text-[10px]"
+                      className={`relative flex h-full items-center justify-center border-r border-[#353534]/30 px-2 cursor-pointer transition-colors active:bg-[#a078ff]/30 ${
+                        isBlack ? 'bg-black text-white/50 text-[9px]' : 'bg-white text-black text-[10px]'
                       }`}
+                      style={{ minWidth: `${KEY_WIDTH}px`, width: `${KEY_WIDTH}px` }}
                     >
                       <span className="font-semibold">{getNoteName(key)}</span>
-                      <div className={`h-1.5 w-1.5 rounded-full ${isBlack ? "bg-white/20" : "bg-black/20"}`} />
+                      <div className={`absolute bottom-2 h-1.5 w-1.5 rounded-full ${isBlack ? 'bg-white/20' : 'bg-black/20'}`} />
                     </div>
                   );
                 })}
@@ -970,16 +976,20 @@ export default function Studio() {
                   const clickX = e.clientX - rect.left;
                   const clickY = e.clientY - rect.top;
 
-                  const timeSubdivision = Math.floor(clickX / zoomX);
-                  const midiNote = MAX_MIDI - Math.floor(clickY / ROW_HEIGHT);
+                  const timeSubdivision = Math.floor(clickY / zoomY);
+                  const midiNote = Math.min(
+                    MAX_MIDI,
+                    Math.max(MIN_MIDI, MIN_MIDI + Math.floor(clickX / KEY_WIDTH)),
+                  );
 
                   addNoteAt(midiNote, timeSubdivision);
                 }}
-                className="relative flex-1 cursor-crosshair select-none bg-[#131313]"
+                className="relative cursor-crosshair select-none bg-[#131313]"
                 style={{
                   ...gridBackgroundStyle,
-                  height: `${pianoKeys.length * ROW_HEIGHT}px`,
                   width: `${totalGridWidth}px`,
+                  height: `${totalGridHeight}px`,
+                  marginTop: `${KEY_TOP_HEIGHT}px`,
                 }}
               >
                 {/* Note capsules */}
@@ -993,9 +1003,9 @@ export default function Studio() {
                   
                   if (!isVisible) return null;
 
-                  const left = timeToX(note.time);
-                  const width = timeToX(note.duration);
-                  const top = (MAX_MIDI - note.midiNote) * ROW_HEIGHT;
+                  const left = (note.midiNote - MIN_MIDI) * KEY_WIDTH;
+                  const top = timeToY(note.time);
+                  const height = Math.max(20, timeToY(note.duration));
 
                   // Velocity glowing intensity
                   const velocityFactor = (note.velocity || 80) / 127;
@@ -1006,17 +1016,18 @@ export default function Studio() {
                       onMouseDown={(e) => handleNoteMouseDown(e, index, false)}
                       onClick={(e) => handleNoteClick(e, index)}
                       onDoubleClick={(e) => handleNoteDoubleClick(e, index)}
-                      className={`absolute rounded-full h-[22px] top-[3px] border cursor-move select-none flex items-center justify-between px-2 transition-shadow ${
+                      className={`absolute rounded-xl border cursor-move select-none flex flex-col justify-between px-1 transition-shadow ${
                         isSelected 
-                          ? "border-white bg-[#d0bcff] text-[#131313] shadow-[0_0_15px_rgba(208,188,255,0.9)] z-10" 
+                          ? 'border-white bg-[#d0bcff] text-[#131313] shadow-[0_0_15px_rgba(208,188,255,0.9)] z-10' 
                           : isNoteActive
-                            ? "border-[#d0bcff]/40 bg-[#a078ff]/80 text-white"
-                            : "border-white/10 bg-white/20 text-white/70"
+                            ? 'border-[#d0bcff]/40 bg-[#a078ff]/80 text-white'
+                            : 'border-white/10 bg-white/20 text-white/70'
                       }`}
                       style={{
                         left: `${left}px`,
-                        width: `${width}px`,
-                        top: `${top + 3}px`,
+                        width: `${KEY_WIDTH}px`,
+                        top: `${top}px`,
+                        height: `${height}px`,
                         opacity: isSelected ? 1 : 0.4 + velocityFactor * 0.6,
                       }}
                     >
@@ -1024,10 +1035,10 @@ export default function Studio() {
                         {getNoteName(note.midiNote)}
                       </span>
 
-                      {/* Resize Right Handle */}
+                      {/* Resize Bottom Handle */}
                       <div
                         onMouseDown={(e) => handleNoteMouseDown(e, index, true)}
-                        className={`w-2 h-full cursor-ew-resize absolute right-0 top-0 rounded-r-full hover:bg-white/30`}
+                        className="absolute bottom-0 left-0 h-2 w-full cursor-ns-resize rounded-b-xl hover:bg-white/30"
                       />
                     </div>
                   );
@@ -1035,9 +1046,9 @@ export default function Studio() {
 
                 {/* Timeline Playhead line */}
                 <div
-                  className="absolute top-0 bottom-0 w-[2px] bg-[#d0bcff] pointer-events-none shadow-[0_0_8px_#d0bcff] z-10"
+                  className="absolute left-0 right-0 h-[2px] bg-[#d0bcff] pointer-events-none shadow-[0_0_8px_#d0bcff] z-10"
                   style={{
-                    left: `${timeToX(playbackTime)}px`,
+                    top: `${timeToY(playbackTime)}px`,
                   }}
                 />
               </div>

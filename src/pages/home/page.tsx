@@ -140,9 +140,9 @@ function BentoGrid() {
           className="glass-card p-8 rounded-3xl bg-gradient-to-br from-[#a078ff]/20 to-transparent flex flex-col items-center text-center justify-center gap-6"
         >
           <Cloud className="text-[#d0bcff] w-16 h-16" />
-          <h3 className="text-xl font-bold">Cloud Sync</h3>
+          <h3 className="text-xl font-bold">Studio</h3>
           <p className="text-sm text-[#cbc3d7]">
-            Your library follows you. Access your custom practices on any device.
+            Create or edit your music in a simple DAW-like page
           </p>
         </motion.div>
       </div>
