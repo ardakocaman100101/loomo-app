@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#131313] text-[#e5e2e1] selection:bg-[#d0bcff]/30">
       <Navbar />
-      
+
       <main className="relative pt-48 pb-20 px-6 overflow-visible min-h-screen flex flex-col items-center">
         {/* Deep Purple Perspective Gradient */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -17,7 +17,7 @@ export default function Home() {
         </div>
 
         <Hero />
-        
+
         <BentoGrid />
       </main>
 
@@ -36,7 +36,7 @@ function Navbar() {
               <div className="w-10 h-10 bg-[#a078ff] rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(160,120,255,0.4)]">
                 <Piano className="text-white w-6 h-6" />
               </div>
-              <span className="text-2xl font-black tracking-tighter text-[#e5e2e1]">loophesia</span>
+              <span className="text-2xl font-black tracking-tighter text-[#e5e2e1]">loomo</span>
             </div>
           </Link>
         </div>
@@ -59,8 +59,8 @@ function Navbar() {
 
 function NavLink({ href, children, active = false }: { href: string, children: React.ReactNode, active?: boolean }) {
   return (
-    <Link 
-      to={href} 
+    <Link
+      to={href}
       className={`font-medium py-1 transition-all ${active ? 'text-[#d0bcff] border-b-2 border-[#d0bcff]' : 'text-[#e5e2e1]/60 hover:text-[#d0bcff]'}`}
     >
       {children}
@@ -73,14 +73,14 @@ function Hero() {
 
   return (
     <div className="relative z-10 w-full max-w-5xl text-center space-y-12">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
         className="space-y-6"
       >
         <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[1.1] text-[#e5e2e1]">
-          loophesia<br />
+          loomo<br />
           <span className="text-[#d0bcff] italic">for </span>
           <span className="text-[#d0bcff] italic">MIDI Keyboards</span>
         </h1>
@@ -89,7 +89,7 @@ function Hero() {
         </p>
       </motion.div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.2, duration: 0.8 }}
@@ -131,11 +131,11 @@ function BentoGrid() {
           <Activity className="text-[#d0bcff] w-16 h-16" />
           <h3 className="text-2xl font-bold">Activity Insights</h3>
           <p className="text-[#cbc3d7] leading-relaxed">
-            Loophesia provides activity metrics to help you understand your practice patterns.
+            loomo provides activity metrics to help you understand your practice patterns.
           </p>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           whileHover={{ scale: 1.02 }}
           className="glass-card p-8 rounded-3xl bg-gradient-to-br from-[#a078ff]/20 to-transparent flex flex-col items-center text-center justify-center gap-6"
         >
@@ -163,8 +163,8 @@ function MobileNav() {
 
 function MobileNavItem({ icon, label, active = false, href }: { icon: React.ReactNode, label: string, active?: boolean, href: string }) {
   return (
-    <Link 
-      to={href} 
+    <Link
+      to={href}
       className={`flex flex-col items-center justify-center px-5 py-2 transition-all active:scale-90 ${active ? 'bg-gradient-to-tr from-[#d0bcff]/20 to-[#a078ff]/20 text-[#d0bcff] rounded-2xl shadow-[0_0_15px_rgba(208,188,255,0.3)]' : 'text-[#e5e2e1]/40 hover:text-[#d0bcff]'}`}
     >
       {icon}

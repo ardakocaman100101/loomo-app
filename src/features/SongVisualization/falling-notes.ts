@@ -117,21 +117,37 @@ function getKeyboardRange(
   songEnd: number,
   instrumentRange: { start: number; end: number } | null,
 ) {
-  if (!instrumentRange) {
-    return { startNote: songStart, endNote: songEnd }
+  let start = 36;
+  let end = 96;
+
+  if (instrumentRange) {
+    start = instrumentRange.start;
+    end = instrumentRange.end;
   }
 
-  const songCenter = (songStart + songEnd) / 2
-  const instrumentCenter = (instrumentRange.start + instrumentRange.end) / 2
+  let k = 0;
+  if (songStart < start || songEnd > end) {
+    const shiftDown = Math.ceil((start - songStart) / 12);
+    const shiftUp = Math.ceil((songEnd - end) / 12);
+    
+    if (shiftDown > 0 && shiftUp <= 0) {
+      k = -shiftDown;
+    } else if (shiftUp > 0 && shiftDown <= 0) {
+      k = shiftUp;
+    } else {
+      const songCenter = (songStart + songEnd) / 2;
+      const instrumentCenter = (start + end) / 2;
+      k = Math.round((songCenter - instrumentCenter) / 12);
+    }
+  }
 
-  let k = Math.round((songCenter - instrumentCenter) / 12)
-  const minK = Math.ceil((21 - instrumentRange.start) / 12)
-  const maxK = Math.floor((108 - instrumentRange.end) / 12)
-  k = Math.max(minK, Math.min(maxK, k))
+  const minK = Math.ceil((21 - start) / 12);
+  const maxK = Math.floor((108 - end) / 12);
+  k = Math.max(minK, Math.min(maxK, k));
 
   return { 
-    startNote: instrumentRange.start + k * 12, 
-    endNote: instrumentRange.end + k * 12 
+    startNote: start + k * 12, 
+    endNote: end + k * 12 
   }
 }
 
@@ -260,19 +276,38 @@ export function renderFallingNote(note: SongNote, state: State): void {
   const keyTop = pianoTopY
   const keyHeight = isBlack(note.midiNote) ? pianoMeasurements.blackHeight : pianoMeasurements.whiteHeight
 
-  const posX = Math.floor(lane.left + 1)
+  let posX = lane.left
+  let noteWidth = lane.width
+
+  if (!isBlack(note.midiNote)) {
+    const leftBlack = state.pianoMeasurements.lanes[note.midiNote - 1]
+    const rightBlack = state.pianoMeasurements.lanes[note.midiNote + 1]
+    
+    if (leftBlack && isBlack(note.midiNote - 1)) {
+      posX = leftBlack.left + leftBlack.width
+    }
+    
+    let rightEdge = lane.left + lane.width
+    if (rightBlack && isBlack(note.midiNote + 1)) {
+      rightEdge = rightBlack.left
+    }
+    
+    noteWidth = rightEdge - posX
+  }
+
+  posX = Math.floor(posX + 1)
+  const width = Math.max(noteWidth - 2, 8)
   const posY = getItemStartEnd(note, state).start
-  const width = Math.max(lane.width - 2, 8)
 
   const actualLength = note.duration * pps
-  const minLengthToDisplayCircle = Math.max(keyHeight, 18)
+  const circleRadius = Math.min(width / 2, keyHeight / 2)
+  const minLengthToDisplayCircle = Math.max(circleRadius * 2, 18)
   const length = Math.max(actualLength, minLengthToDisplayCircle)
 
   const color = getNoteColor(state, note)
 
   ctx.save()
 
-  const circleRadius = Math.min(width / 2, keyHeight / 2)
   const tailTopY = posY - length
   
   if (tailTopY < posY - circleRadius) {

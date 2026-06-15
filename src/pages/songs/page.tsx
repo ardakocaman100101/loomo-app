@@ -1,7 +1,6 @@
 import { Modal, Sizer, UploadMidi } from '@/components'
 import { useSongManifest } from '@/features/data/library'
 import { initialize } from '@/features/persist/persistence'
-import { SongPreviewModal } from '@/features/SongPreview'
 import { useEventListener } from '@/hooks'
 import { Plus } from '@/icons'
 import { SongMetadata } from '@/types'
@@ -9,16 +8,16 @@ import { formatTime } from '@/utils'
 import clsx from 'clsx'
 import * as React from 'react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Table } from './components'
 import ManageFoldersForm from './components/AddFolderForm'
 import { SearchBox } from './components/Table/SearchBox'
 
 // TODO: after an upload, scroll to the newly uploaded song / make it focused.
 export default function SelectSongPage() {
+  const navigate = useNavigate()
   let songs: SongMetadata[] = useSongManifest()
   const [isUploadFormOpen, setUploadForm] = useState<boolean>(false)
-  const [selectedSongId, setSelectedSongId] = useState<any>('')
-  const selectedSongMeta = songs.find((s) => s.id === selectedSongId)
   const [search, setSearch] = useState('')
 
   useEventListener<KeyboardEvent>('keydown', (event) => {
@@ -39,13 +38,6 @@ export default function SelectSongPage() {
   return (
     <>
       <title>Select a song</title>
-      <SongPreviewModal
-        show={!!selectedSongId}
-        songMeta={selectedSongMeta}
-        onClose={() => {
-          setSelectedSongId(null)
-        }}
-      />
       <Modal show={isUploadFormOpen} onClose={handleCloseAddNew}>
         <ManageFoldersForm onClose={handleCloseAddNew} />
       </Modal>
@@ -62,7 +54,7 @@ export default function SelectSongPage() {
               autoFocus={true}
             />
             <UploadMidi
-              onUpload={(id: string) => setSelectedSongId(id)}
+              onUpload={(id: string) => navigate(`/studio?id=${id}&source=upload`)}
               className="bg-purple-dark hover:bg-purple-hover flex items-center gap-2 rounded-md px-4 py-2 text-white transition"
             />
             <button
@@ -90,7 +82,12 @@ export default function SelectSongPage() {
             getId={(s: SongMetadata) => s.id}
             rows={songs}
             filter={['title']}
-            onSelectRow={setSelectedSongId}
+            onSelectRow={(id: string) => {
+              const song = songs.find(s => s.id === id)
+              if (song) {
+                navigate(`/studio?id=${id}&source=${song.source || 'local'}`)
+              }
+            }}
             search={search}
           />
         </div>

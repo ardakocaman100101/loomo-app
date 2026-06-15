@@ -112,6 +112,13 @@ export default function PlaySongPage() {
   const [statsVisible, setStatsVisible] = useState(true)
   const zoomModes = [25, 32, 49, 61, 76, 88]
   const [zoomIndex, setZoomIndex] = useState(2)
+
+  const handleWheel = React.useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey) {
+      e.preventDefault()
+      setZoomIndex((i) => e.deltaY < 0 ? Math.max(0, i - 1) : Math.min(zoomModes.length - 1, i + 1))
+    }
+  }, [zoomModes.length])
   const playerState = usePlayerState()
   const synth = useLazyStableRef(() => getSynthStub('acoustic_grand_piano'))
   let { data: song, error, isLoading, mutate } = useSong(id, source)
@@ -348,7 +355,7 @@ export default function PlaySongPage() {
               onClickRestart={() => player.restart()}
               onClickBack={() => {
                 player.stop()
-                navigate('/')
+                navigate(`/studio?id=${encodeURIComponent(id)}&source=${source}`)
               }}
               onClickMidi={(e) => {
                 e.stopPropagation()
@@ -365,10 +372,6 @@ export default function PlaySongPage() {
               isWaiting={waiting}
               settingsOpen={settingsOpen}
               statsVisible={statsVisible}
-              onClickStudio={() => {
-                player.stop()
-                navigate(`/studio?id=${encodeURIComponent(id)}&source=${source}`)
-              }}
             />
             <MidiModal isOpen={isMidiModalOpen} onClose={() => setMidiModal(false)} />
             {settingsOpen && (
@@ -420,6 +423,7 @@ export default function PlaySongPage() {
             'h-[100dvh]!',
             songConfig.visualization === 'sheet' ? 'bg-white' : 'bg-[#2e2e2e]',
           )}
+          onWheel={handleWheel}
         >
           <SongVisualizer
             song={song}

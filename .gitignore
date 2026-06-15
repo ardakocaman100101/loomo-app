@@ -21,3 +21,5 @@ tsconfig.tsbuildinfo
 
 # vercel cli files
 .vercel
+node_modules/
+*.zip

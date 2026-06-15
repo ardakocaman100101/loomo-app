@@ -36,6 +36,10 @@ export async function initialize() {
   try {
     const dirs: LocalDir[] = (await idb.get(storageKeys.OBSERVED_DIRECTORIES)) ?? []
     store.set(localDirsAtom, dirs)
+
+    const uploaded: SongMetadata[] = (await idb.get('UPLOADED_SONGS')) ?? []
+    store.set(uploadedSongsAtom, uploaded)
+
     const hasPermission = await Promise.all(dirs.map((dir) => checkPermission(dir.handle)))
     if (!hasPermission.every((p) => p)) {
       store.set(requiresPermissionAtom, true)
@@ -93,6 +97,18 @@ export async function addFolder(): Promise<void> {
 }
 
 export async function addUploadedSongs(files: File[]): Promise<string> {
+  if (files.length === 0) throw new Error('No files provided')
+
+  const isMultiFile = files.length > 1
+  const title = isMultiFile ? `Progressive: ${files[0].name.replace(/\.[^/.]+$/, '')}` : files[0].name.replace(/\.[^/.]+$/, '')
+
+  const currentUploaded = store.get(uploadedSongsAtom)
+  const existing = currentUploaded.find(s => s.title === title)
+  
+  if (existing) {
+    return existing.id
+  }
+
   // Sort files and parse them
   const parsedSongs = await Promise.all(
     files.map(async (file) => {
@@ -109,8 +125,6 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
     return firstNoteA - firstNoteB
   })
 
-  // Determine if it's a multi-file learning case
-  const isMultiFile = files.length > 1
   const id = crypto.randomUUID()
 
   // For a single file, we behave as before.
@@ -175,7 +189,7 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
 
   const metadata: SongMetadata = {
     id,
-    title: isMultiFile ? `Progressive: ${files[0].name.replace(/\.[^/.]+$/, '')}` : files[0].name.replace(/\.[^/.]+$/, ''),
+    title,
     file: id,
     source: 'upload',
     difficulty: 0,
@@ -191,8 +205,9 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
   // Or just store the JSON result? (Easier)
   // persistence.ts doesn't seem to have a `getSong` function, it's in the player probably.
 
-  const currentUploaded = store.get(uploadedSongsAtom)
-  store.set(uploadedSongsAtom, [...currentUploaded, metadata])
+  const newUploaded = [...currentUploaded, metadata]
+  store.set(uploadedSongsAtom, newUploaded)
+  idb.set('UPLOADED_SONGS', newUploaded)
 
   // Store the FIRST file as the primary handle for consistency if needed, 
   // but we'll manually store the merged song in Storage.
@@ -365,7 +380,9 @@ export function registerCustomSketch(id: string, title: string, duration: number
   }
   const currentUploaded = store.get(uploadedSongsAtom)
   if (!currentUploaded.some((s) => s.id === id)) {
-    store.set(uploadedSongsAtom, [...currentUploaded, metadata])
+    const newUploaded = [...currentUploaded, metadata]
+    store.set(uploadedSongsAtom, newUploaded)
+    idb.set('UPLOADED_SONGS', newUploaded)
   }
 }
 

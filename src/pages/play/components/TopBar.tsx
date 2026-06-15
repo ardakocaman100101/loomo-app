@@ -10,7 +10,6 @@ import {
   Settings,
   SkipBack,
   Timer,
-  Music,
 } from 'lucide-react'
 import { MouseEvent, PropsWithChildren } from 'react'
 import { Link } from 'react-router'
@@ -60,7 +59,6 @@ type TopBarProps = {
   statsVisible: boolean
   isWaiting: boolean
   onToggleWaiting: () => void
-  onClickStudio?: (e: MouseEvent<any>) => void
 }
 
 export default function TopBar({
@@ -77,7 +75,6 @@ export default function TopBar({
   statsVisible,
   isWaiting,
   onToggleWaiting,
-  onClickStudio,
 }: TopBarProps) {
   return (
     <div className="align-center relative z-10 flex h-[50px] min-h-[50px] w-screen justify-center gap-8 bg-[#292929] px-1">
@@ -111,11 +108,6 @@ export default function TopBar({
         <ButtonWithTooltip tooltip="Settings" isActive={settingsOpen}>
           <Settings size={24} onClick={onClickSettings} />
         </ButtonWithTooltip>
-        {onClickStudio && (
-          <ButtonWithTooltip tooltip="Open Studio">
-            <Music size={24} onClick={onClickStudio} />
-          </ButtonWithTooltip>
-        )}
         {!isMobile() && <VolumeSliderButton />}
         {
           <ButtonWithTooltip tooltip={statsVisible ? 'Hide Stats' : 'Show Stats'}>

@@ -8,6 +8,7 @@ import { songToMidiBytes } from "@/features/studio/midi-encoder";
 import * as persistence from "@/features/persist/persistence";
 import midiState from "@/features/midi";
 import { bytesToBase64 } from "@/utils";
+import { useEventListener } from "@/hooks";
 import { mutate } from "swr";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -89,24 +90,37 @@ export default function Studio() {
       songEnd = Math.max(...notes.map((n) => n.midiNote));
     }
 
-    if (!instrumentRange) {
-      // Default fallback (61 keys)
-      let k = Math.round(((songStart + songEnd) / 2 - 66) / 12);
-      k = Math.max(-1, Math.min(3, k));
-      return { minMidi: 36 + k * 12, maxMidi: 96 + k * 12 };
+    let start = 36;
+    let end = 96;
+
+    if (instrumentRange) {
+      start = instrumentRange.start;
+      end = instrumentRange.end;
     }
 
-    const songCenter = (songStart + songEnd) / 2;
-    const instrumentCenter = (instrumentRange.start + instrumentRange.end) / 2;
+    let k = 0;
+    if (songStart < start || songEnd > end) {
+      const shiftDown = Math.ceil((start - songStart) / 12);
+      const shiftUp = Math.ceil((songEnd - end) / 12);
+      
+      if (shiftDown > 0 && shiftUp <= 0) {
+        k = -shiftDown;
+      } else if (shiftUp > 0 && shiftDown <= 0) {
+        k = shiftUp;
+      } else {
+        const songCenter = (songStart + songEnd) / 2;
+        const instrumentCenter = (start + end) / 2;
+        k = Math.round((songCenter - instrumentCenter) / 12);
+      }
+    }
 
-    let k = Math.round((songCenter - instrumentCenter) / 12);
-    const minK = Math.ceil((21 - instrumentRange.start) / 12);
-    const maxK = Math.floor((108 - instrumentRange.end) / 12);
+    const minK = Math.ceil((21 - start) / 12);
+    const maxK = Math.floor((108 - end) / 12);
     k = Math.max(minK, Math.min(maxK, k));
 
     return {
-      minMidi: instrumentRange.start + k * 12,
-      maxMidi: instrumentRange.end + k * 12,
+      minMidi: start + k * 12,
+      maxMidi: end + k * 12,
     };
   }, [notes, instrumentRange]);
   
@@ -302,6 +316,14 @@ export default function Studio() {
       }
     };
   }, []);
+
+  useEventListener<KeyboardEvent>("keydown", (e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      togglePlayback();
+    }
+  });
 
   // Time & Pixel coordinates mapping
   const timeToY = useCallback((t: number) => {
@@ -971,7 +993,7 @@ export default function Studio() {
           </div>
 
           {/* Main Grid viewport */}
-          <div className="flex-1 overflow-auto relative">
+          <div className="flex-1 overflow-auto relative" onWheel={handleWheel}>
             <div
               className="relative"
               style={{

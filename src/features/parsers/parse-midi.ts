@@ -37,46 +37,7 @@ export default function parseMidi(midiData: Uint8Array<ArrayBuffer>): Song {
     }),
   )
 
-  // Auto-split single track MIDI
-  const activeTracks = new Set(notes.map((n) => n.track))
-  if (activeTracks.size === 1) {
-    const mainTrackId = activeTracks.values().next().value
-    if (mainTrackId === undefined) throw new Error('No track found')
-
-    const splitTrackId = Math.max(...Object.keys(tracks).map(Number)) + 1
-
-    // Create new track for left hand (Bass)
-    tracks[splitTrackId] = {
-      name: 'Left Hand (Auto-Split)',
-      instrument: tracks[mainTrackId].instrument,
-      program: tracks[mainTrackId].program,
-    }
-
-    // Move notes < 60 (Middle C) to the new track
-    // Use K-Means clustering (K=2) to find a better split point than just Middle C.
-    // This adapts to songs that are higher or lower in register.
-    const pitches = notes.map((n) => n.midiNote)
-    if (pitches.length > 0) {
-      let centerL = 48 // Start around C3
-      let centerR = 72 // Start around C5
-      for (let i = 0; i < 5; i++) {
-        const groupL = pitches.filter((p) => Math.abs(p - centerL) < Math.abs(p - centerR))
-        const groupR = pitches.filter((p) => Math.abs(p - centerL) >= Math.abs(p - centerR))
-
-        if (groupL.length > 0) centerL = groupL.reduce((a, b) => a + b, 0) / groupL.length
-        if (groupR.length > 0) centerR = groupR.reduce((a, b) => a + b, 0) / groupR.length
-      }
-
-      const splitPoint = (centerL + centerR) / 2
-
-      notes = notes.map((note) => {
-        if (note.track === mainTrackId && note.midiNote < splitPoint) {
-          return { ...note, track: splitTrackId }
-        }
-        return note
-      })
-    }
-  }
+  // Auto-split logic removed so every midi file track is a standalone track
   const timeSignature = parsed.header.timeSignatures[0]?.timeSignature ?? [4, 4]
   const keySignature = parsed.header.keySignatures[0]?.key as KEY_SIGNATURE
 
