@@ -2,7 +2,7 @@
 
 An open-source web app for making and practicing music
 
-### just make music
+## just make music
 I've been learning to play keyboard and pads in my free time. I started out using a gamified learning app to practice songs but I realized there was no room for my creativity. I truly believe you can be a total beginner and still make music if you have the right tech helping you out
 
 That's why I built loomo. It can make you practice and create with two main features:
@@ -10,6 +10,8 @@ That's why I built loomo. It can make you practice and create with two main feat
 **Play Mode** translates standard sheet music into a fun, interactive interface. When you're just starting out, the hardest part is hitting the right note for the right amount of time. The falling notes interface takes care of that the easiest way possible 
 
 **Studio Mode** this is where you can edit notes and apply filters. Even if you only have total beginner knowledge, you should still be able to throw your own flavor onto a track
+
+You can also use the Practice page to create a track from stratch. MIDI files can be uploaded and saved. Each page is connected to each other. So you can play, quantise, remix and itirate to reach your desired song
 
 ### Tech Stack
 loomo is still a work in progress. I work full-time, so I’m building this solo as a passion project. The project is built web-first using React, TypeScript, and Vite
