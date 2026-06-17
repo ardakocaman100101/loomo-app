@@ -230,6 +230,8 @@ class MidiState {
   }
 
   handleKeyDown(e: KeyboardEvent) {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
     let { key, code, metaKey, ctrlKey, altKey } = e
 
     if (metaKey || ctrlKey || altKey) {
@@ -283,9 +285,10 @@ class MidiState {
     onKeyUp: React.KeyboardEventHandler
     tabIndex: number
   } {
+    // Deprecated: listeners are now global
     return {
-      onKeyDown: (e: React.KeyboardEvent) => this.handleKeyDown(e as any),
-      onKeyUp: (e: React.KeyboardEvent) => this.handleKeyUp(e as any),
+      onKeyDown: () => {},
+      onKeyUp: () => {},
       tabIndex: -1,
     }
   }
@@ -341,11 +344,19 @@ class MidiState {
 
   unsubscribe(cb: Function) {
     let i = this.listeners.indexOf(cb)
-    this.listeners.splice(i, 1)
+    if (i !== -1) {
+      this.listeners.splice(i, 1)
+    }
   }
 }
 
 const midiState = new MidiState()
+
+// Global PC Keyboard listeners
+if (isBrowser()) {
+  window.addEventListener('keydown', (e) => midiState.handleKeyDown(e))
+  window.addEventListener('keyup', (e) => midiState.handleKeyUp(e))
+}
 
 function onMidiMessage(e: MIDIMessageEvent) {
   const msg: MidiEvent | null = parseMidiMessage(e)

@@ -36,11 +36,19 @@ const colors = {
   rangeSelectionFill: '#44b22e',
 }
 
+const feedbackColors: Record<string, string> = {
+  green: '#2ecc71',
+  yellow: '#f1c40f',
+  grey: '#95a5a6',
+  red: '#e74c3c',
+  purple: '#8147EB',
+}
+
 function getActiveNotes(state: State): Map<number, string> {
   const activeNotes = new Map<number, string>(state.player.pressFeedback)
   for (let midiNote of midiState.getPressedNotes().keys()) {
     if (!activeNotes.has(midiNote)) {
-      activeNotes.set(midiNote, 'grey')
+      activeNotes.set(midiNote, 'purple')
     }
   }
 
@@ -90,10 +98,10 @@ function deriveState(state: GivenState): State {
   const pianoMeasurements = getPianoRollMeasurements(state.windowWidth, { startNote, endNote })
   const pianoTopY = Math.max(0, state.height - pianoMeasurements.whiteHeight - 5)
   const pianoWidth = pianoMeasurements.pianoWidth
-  const noteHitY = pianoTopY - 40
+  const noteHitY = pianoTopY - 120
 
-  const averageLaneHeight = state.height / minNotes
-  const averageCircleRadius = (averageLaneHeight / 2) - 1
+  const averageLaneWidth = state.windowWidth / minNotes
+  const averageCircleRadius = (averageLaneWidth / 2) - 1
   // Perfect tolerance inside the circle, exactly matching the radius in terms of MS
   // Multiplied by 2.5 to make it more forgiving and easier to get green.
   const perfectRangeMs = (averageCircleRadius / state.pps) * 1000 * 1.5
@@ -218,6 +226,13 @@ function renderHitLine(state: State) {
 }
 
 function getNoteColor(state: State, note: SongNote): string {
+  const isPressed = midiState.getPressedNotes().has(note.midiNote)
+  const feedback = state.player.pressFeedback.get(note.midiNote)
+  
+  if (isPressed && feedback) {
+    return feedbackColors[feedback] ?? feedback
+  }
+
   const hand = state.hands[note.track]?.hand ?? 'both'
   const keyType = isBlack(note.midiNote) ? 'black' : 'white'
 
@@ -309,9 +324,11 @@ export function renderFallingNote(note: SongNote, state: State): void {
   ctx.save()
 
   const tailTopY = posY - length
+  const circleCenterX = posX + width / 2
+  const circleCenterY = posY - circleRadius
   
   if (tailTopY < posY - circleRadius) {
-    const grad = ctx.createLinearGradient(posX, posY - circleRadius, posX, tailTopY)
+    const grad = ctx.createLinearGradient(circleCenterX, circleCenterY, circleCenterX, tailTopY)
     grad.addColorStop(0, color)
     grad.addColorStop(1, color)
     ctx.fillStyle = grad
@@ -319,17 +336,19 @@ export function renderFallingNote(note: SongNote, state: State): void {
     ctx.globalAlpha = 0.8
 
     const rectTop = tailTopY
-    const rectHeight = length - circleRadius * 0.5
-    roundRect(ctx, posX, rectTop, width, rectHeight, {
-      topRadius: width * 0.35,
+    const rectHeight = circleCenterY - rectTop
+    const rectWidth = circleRadius * 2
+    const rectLeft = circleCenterX - circleRadius
+
+    roundRect(ctx, rectLeft, rectTop, rectWidth, rectHeight, {
+      topRadius: rectWidth * 0.35,
       bottomRadius: 0,
     })
 
     ctx.globalAlpha = 1.0
   }
 
-  const circleCenterX = posX + width / 2
-  const circleCenterY = posY - circleRadius
+
   ctx.fillStyle = color
   ctx.beginPath()
   ctx.arc(circleCenterX, circleCenterY, circleRadius, 0, 2 * Math.PI)
@@ -342,19 +361,21 @@ export function renderFallingNote(note: SongNote, state: State): void {
   if (noteLabels !== 'none') {
     ctx.fillStyle = 'white'
     ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'
     const key = getKey(note.midiNote, state.keySignature)
     const noteText = noteLabels === 'alphabetical' ? key : getFixedDoNoteFromKey(key)
 
     const padding = 2
     const maxWidth = circleRadius * 2 - padding * 2
-    const { fontPx, measuredWidth: textWidth } = getOptimalFontSize(
+    let { fontPx, measuredWidth: textWidth } = getOptimalFontSize(
       ctx,
       noteText,
       TEXT_FONT,
       maxWidth,
     )
+    fontPx = Math.min(fontPx, maxWidth * 0.8)
     ctx.font = `bold ${fontPx}px ${TEXT_FONT}`
-    ctx.fillText(noteText, circleCenterX - textWidth / 2, circleCenterY)
+    ctx.fillText(noteText, circleCenterX, circleCenterY + fontPx * 0.05)
   }
 
   ctx.restore()

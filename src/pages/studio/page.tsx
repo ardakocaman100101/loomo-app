@@ -325,6 +325,21 @@ export default function Studio() {
     }
   });
 
+  // Physical MIDI and PC keyboard input support
+  useEffect(() => {
+    const handleMidiEvent = (e: import("@/types").MidiStateEvent) => {
+      const synth = synthCacheRef.current[activeTrack];
+      if (!synth) return;
+      if (e.type === "down" && e.note !== undefined) {
+        synth.playNote(e.note, e.velocity || 80);
+      } else if (e.type === "up" && e.note !== undefined) {
+        synth.stopNote(e.note);
+      }
+    };
+    midiState.subscribe(handleMidiEvent);
+    return () => midiState.unsubscribe(handleMidiEvent);
+  }, [activeTrack]);
+
   // Time & Pixel coordinates mapping
   const timeToY = useCallback((t: number) => {
     // 1 beat = 4 subdivisions (16th notes)

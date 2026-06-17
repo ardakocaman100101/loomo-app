@@ -10,6 +10,18 @@ const TEXT_FONT = 'Arial'
 type Color = string
 const whiteKeyBackground: Color = 'rgb(255,253,240)'
 
+const feedbackColors: Record<string, string> = {
+  green: '#2ecc71',
+  yellow: '#f1c40f',
+  grey: '#95a5a6',
+  red: '#e74c3c',
+  purple: '#8147EB',
+}
+
+function resolveFeedbackColor(color: string): string {
+  return feedbackColors[color] ?? color
+}
+
 export interface PianoRollMeasurements {
   lanes: {
     [midiNote: number]: { left: number; width: number; whiteMiddle?: number }
@@ -128,7 +140,7 @@ export async function drawPianoRoll(
     }
     const activeColor = activeNotes.get(+midiNote)
     if (activeColor) {
-      ctx.fillStyle = activeColor
+      ctx.fillStyle = resolveFeedbackColor(activeColor)
       roundRect(ctx, left, pianoTopY, width - whiteNoteSeparation, height, {
         topRadius: 0,
         bottomRadius: width / 10,
@@ -163,15 +175,15 @@ export async function drawPianoRoll(
     )
 
     const isPressed = activeNotes.has(+midiNote)
-    ctx.fillStyle = activeNotes.get(+midiNote) ?? 'black'
     const images = getImages()
     let img = isPressed ? images.blackKeyPressed : images.blackKeyRaised
     let posY = isPressed ? pianoTopY : pianoTopY - 2
     ctx.drawImage(img, left, posY, width, blackHeight)
-    if (activeNotes.has(+midiNote)) {
-      ctx.globalCompositeOperation = 'overlay'
+    const blackActiveColor = activeNotes.get(+midiNote)
+    if (blackActiveColor) {
+      ctx.globalAlpha = 0.55
+      ctx.fillStyle = resolveFeedbackColor(blackActiveColor)
       ctx.fillRect(left, posY, width, blackHeight)
-      ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = 1
     }
   }
@@ -317,7 +329,7 @@ export async function drawVerticalPianoRoll(
     }
     const activeColor = activeNotes.get(+midiNote)
     if (activeColor) {
-      ctx.fillStyle = activeColor
+      ctx.fillStyle = resolveFeedbackColor(activeColor)
       roundRect(ctx, pianoLeftX, top, width, height - whiteNoteSeparation, {
         topRadius: 0,
         bottomRadius: height / 10,
@@ -334,21 +346,18 @@ export async function drawVerticalPianoRoll(
 
     const isPressed = activeNotes.has(+midiNote)
     ctx.fillStyle = activeNotes.get(+midiNote) ?? 'black'
-    const images = getImages()
-    let img = isPressed ? images.blackKeyPressed : images.blackKeyRaised
 
     ctx.save()
-    // black keys are currently images drawn top-to-bottom. We need to rotate them or draw them directly.
-    // Actually, drawing black keys horizontally may need custom drawing, but we can just use roundRect for now.
     const width = isPressed ? blackWidth : blackWidth + 2
     roundRect(ctx, pianoLeftX, top, width, height, {
       topRadius: 0,
       bottomRadius: height / 10
     })
-    if (activeNotes.has(+midiNote)) {
-      ctx.globalCompositeOperation = 'overlay'
+    const vBlackActiveColor = activeNotes.get(+midiNote)
+    if (vBlackActiveColor) {
+      ctx.globalAlpha = 0.55
+      ctx.fillStyle = resolveFeedbackColor(vBlackActiveColor)
       ctx.fillRect(pianoLeftX, top, width, height)
-      ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = 1
     }
     ctx.restore()
