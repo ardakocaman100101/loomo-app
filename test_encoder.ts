@@ -19,7 +19,7 @@ const song: any = {
 }
 
 const bytes = songToMidiBytes(song);
-const parsed = parseMidi(bytes);
+const parsed = parseMidi(bytes as any);
 console.log("Original notes:");
 console.log(song.notes);
 console.log("\nParsed notes:");

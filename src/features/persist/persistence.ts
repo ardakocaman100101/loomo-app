@@ -133,17 +133,10 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
   let mergedDuration = 0
   const mergedNotes: SongNote[] = []
   const mergedTracks: Tracks = {}
-  const mergedMeasures: SongMeasure[] = []
-  const mergedBpms: Bpm[] = []
 
   let trackOffset = 0
-  let measureOffset = 0
-  let timeOffset = 0 // In sequential mode, we might want them one after another, 
-  // but the prompt says: "X should be played before Y" and "when X is finished, bring Y's notes".
-  // This implies they might overlapping in absolute MIDI time but we treat them sequentially.
-  // Actually, if we want them sequential, we should offset their 'time' property.
 
-  parsedSongs.forEach(({ file, song }, index) => {
+  parsedSongs.forEach(({ file, song }) => {
     // Re-index tracks
     const trackMapping: { [old: number]: number } = {}
     Object.keys(song.tracks).forEach((oldIdStr) => {
@@ -155,37 +148,27 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
       mergedTracks[newId].name = `${song.tracks[oldIdStr].name || 'Track'} (${file.name})`
     })
 
-    // Flatten notes with time offset?
-    // User says: "when X is finished, you should bring Y's notes".
-    // This sounds like we should concatenate them in time.
     song.notes.forEach((note) => {
       mergedNotes.push({
         ...note,
         track: trackMapping[note.track],
-        time: note.time + timeOffset,
-        measure: note.measure + measureOffset,
       })
     })
 
-    song.measures.forEach((measure) => {
-      mergedMeasures.push({
-        ...measure,
-        time: measure.time + timeOffset,
-        number: measure.number + measureOffset,
-      })
-    })
-
-    song.bpms.forEach((bpm) => {
-      mergedBpms.push({
-        ...bpm,
-        time: bpm.time + timeOffset,
-      })
-    })
-
-    timeOffset += song.duration
-    measureOffset += song.measures.length
-    mergedDuration += song.duration
+    if (song.duration > mergedDuration) {
+      mergedDuration = song.duration
+    }
   })
+
+  // Use the measures and bpms from the longest song to represent the timeline
+  let maxDurationSong = parsedSongs[0].song
+  parsedSongs.forEach(({ song }) => {
+    if (song.duration > maxDurationSong.duration) {
+      maxDurationSong = song
+    }
+  })
+  const mergedMeasures = maxDurationSong.measures
+  const mergedBpms = maxDurationSong.bpms
 
   const metadata: SongMetadata = {
     id,
@@ -355,6 +338,10 @@ export function getPersistedSongSettings(file: string) {
 
 export function setPersistedSongSettings(file: string, config: SongConfig) {
   return Storage.set(`${file}/settings`, config)
+}
+
+export function clearPersistedSongSettings(file: string) {
+  Storage.delete(`${file}/settings`)
 }
 
 export function getEditedMidi(id: string): string | null {

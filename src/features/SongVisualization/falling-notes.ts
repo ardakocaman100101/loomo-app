@@ -41,14 +41,14 @@ const feedbackColors: Record<string, string> = {
   yellow: '#f1c40f',
   grey: '#95a5a6',
   red: '#e74c3c',
-  purple: '#8147EB',
+  blue: '#3498db',
 }
 
 function getActiveNotes(state: State): Map<number, string> {
   const activeNotes = new Map<number, string>(state.player.pressFeedback)
   for (let midiNote of midiState.getPressedNotes().keys()) {
     if (!activeNotes.has(midiNote)) {
-      activeNotes.set(midiNote, 'purple')
+      activeNotes.set(midiNote, 'blue')
     }
   }
 
@@ -105,7 +105,7 @@ function deriveState(state: GivenState): State {
   // Perfect tolerance inside the circle, exactly matching the radius in terms of MS
   // Multiplied by 2.5 to make it more forgiving and easier to get green.
   const perfectRangeMs = (averageCircleRadius / state.pps) * 1000 * 1.5
-  // Yellow/purple boundary (e.g. 4 times the circle radius)
+  // Yellow/blue boundary (e.g. 4 times the circle radius)
   const goodRangeMs = perfectRangeMs * 4
   state.player.setTolerance(perfectRangeMs, goodRangeMs)
 
@@ -230,7 +230,12 @@ function getNoteColor(state: State, note: SongNote): string {
   const feedback = state.player.pressFeedback.get(note.midiNote)
   
   if (isPressed && feedback) {
-    return feedbackColors[feedback] ?? feedback
+    // Only apply feedback color if the note is currently near or on the baseline.
+    const now = state.time;
+    const margin = state.player.goodRange / 1000; // convert ms to seconds
+    if (now >= note.time - margin && now <= note.time + note.duration + margin) {
+      return feedbackColors[feedback] ?? feedback
+    }
   }
 
   const hand = state.hands[note.track]?.hand ?? 'both'

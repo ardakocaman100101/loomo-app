@@ -15,8 +15,8 @@ const song = {
   ]
 };
 
-const bytes = songToMidiBytes(song);
-const parsed = parseMidi(bytes);
+const bytes = songToMidiBytes(song as any);
+const parsed = parseMidi(bytes as any);
 console.log("Original Notes:");
 console.log(song.notes);
 console.log("Parsed Notes:");

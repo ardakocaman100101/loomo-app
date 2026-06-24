@@ -110,15 +110,15 @@ export default function PlaySongPage() {
   const [settingsOpen, setSettingsPanel] = useState(false)
   const [isMidiModalOpen, setMidiModal] = useState(false)
   const [statsVisible, setStatsVisible] = useState(true)
-  const zoomModes = [25, 32, 49, 61, 76, 88]
-  const [zoomIndex, setZoomIndex] = useState(2)
+  const ppsScales = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
+  const [scaleIndex, setScaleIndex] = useState(2)
 
   const handleWheel = React.useCallback((e: React.WheelEvent) => {
     if (e.ctrlKey) {
       e.preventDefault()
-      setZoomIndex((i) => e.deltaY < 0 ? Math.max(0, i - 1) : Math.min(zoomModes.length - 1, i + 1))
+      setScaleIndex((i) => e.deltaY < 0 ? Math.min(ppsScales.length - 1, i + 1) : Math.max(0, i - 1))
     }
-  }, [zoomModes.length])
+  }, [ppsScales.length])
   const playerState = usePlayerState()
   const synth = useLazyStableRef(() => getSynthStub('acoustic_grand_piano'))
   let { data: song, error, isLoading, mutate } = useSong(id, source)
@@ -169,7 +169,28 @@ export default function PlaySongPage() {
   useEffect(() => {
     if (!song) return
     // TODO: handle invalid song. Pipe up not-found midi for 400s etc.
-    const config = getSongSettings(id, song)
+    let config = getSongSettings(id, song)
+
+    const practiceTrackIdParam = searchParams.get('practiceTrackId')
+    if (practiceTrackIdParam !== null) {
+      const practiceTrackId = Number(practiceTrackIdParam)
+      if (!isNaN(practiceTrackId)) {
+        const updatedTracks = { ...config.tracks }
+        Object.keys(updatedTracks).forEach((trackIdStr) => {
+          const trackId = Number(trackIdStr)
+          updatedTracks[trackId] = {
+            ...updatedTracks[trackId],
+            practice: trackId === practiceTrackId,
+            sound: true,
+          }
+        })
+        config = {
+          ...config,
+          tracks: updatedTracks,
+        }
+      }
+    }
+
     setSongConfig(config)
     player.setSong(song, config)
 
@@ -185,7 +206,7 @@ export default function PlaySongPage() {
     } else {
       player.store.set(player.progressiveMode, false)
     }
-  }, [song, setSongConfig, id, player, songMeta?.title])
+  }, [song, setSongConfig, id, player, songMeta?.title, searchParams])
 
   useEventListener<KeyboardEvent>('keydown', (evt: KeyboardEvent) => {
     if (evt.code === 'Space') {
@@ -401,16 +422,16 @@ export default function PlaySongPage() {
               />
             </div>
             {statsVisible && <StatsPopup />}
-            <div className="absolute left-4 top-20 z-10 flex flex-col gap-2">
+            <div className="absolute left-4 top-20 z-30 flex flex-col gap-2">
               <button
                 className="cursor-pointer rounded-full bg-black/30 p-2 text-white transition hover:bg-black/50 pointer-events-auto"
-                onClick={() => setZoomIndex(i => Math.max(0, i - 1))}
+                onClick={() => setScaleIndex(i => Math.min(ppsScales.length - 1, i + 1))}
               >
                 <ZoomIn className="h-5 w-5" />
               </button>
               <button
                 className="cursor-pointer rounded-full bg-black/30 p-2 text-white transition hover:bg-black/50 pointer-events-auto"
-                onClick={() => setZoomIndex(i => Math.min(zoomModes.length - 1, i + 1))}
+                onClick={() => setScaleIndex(i => Math.max(0, i - 1))}
               >
                 <ZoomOut className="h-5 w-5" />
               </button>
@@ -433,7 +454,7 @@ export default function PlaySongPage() {
             selectedRange={selectedRange}
             getTime={() => player.getTime()}
             enableTouchscroll={songConfig.visualization === 'falling-notes'}
-            zoomMode={zoomModes[zoomIndex]}
+            ppsScale={ppsScales[scaleIndex]}
           />
         </div>
       </div>

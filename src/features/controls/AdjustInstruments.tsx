@@ -9,6 +9,7 @@ import { formatInstrumentName } from '@/utils'
 import clsx from 'clsx'
 import { getDefaultStore, useAtomValue } from 'jotai'
 import React, { useState } from 'react'
+import { Target } from 'lucide-react'
 
 type InstrumentSettingsProps = {
   config: SongConfig
@@ -171,10 +172,12 @@ function InstrumentCard({
         loading={synthState.loading}
       />
       <TrackSettingsSection
+        practice={track.practice}
         hand={track.hand}
         sound={track.sound}
         onSelectHand={handleSelectHand}
         onToggleSound={handleSound}
+        onTogglePractice={(practice) => setTrack(trackId, { ...track, practice })}
       />
     </span>
   )
@@ -205,19 +208,34 @@ function InstrumentSelect({
 }
 
 type TrackSettingProps = {
+  practice: boolean
   hand: 'left' | 'right' | 'none'
   sound: boolean
   onSelectHand: (hand: 'left' | 'right' | 'none') => void
   onToggleSound: (sound: boolean) => void
+  onTogglePractice: (practice: boolean) => void
 }
-function TrackSettingsSection({ hand, sound, onSelectHand, onToggleSound }: TrackSettingProps) {
+function TrackSettingsSection({
+  practice,
+  hand,
+  sound,
+  onSelectHand,
+  onToggleSound,
+  onTogglePractice,
+}: TrackSettingProps) {
   const handleSound = (e: React.MouseEvent) => {
     e.stopPropagation()
     onToggleSound(!sound)
   }
 
+  const handlePractice = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onTogglePractice(!practice)
+  }
+
   return (
     <div className="jusitfy-around flex items-center gap-4 p-4">
+      <TogglePractice on={practice} onClick={handlePractice} />
       <ToggleLeftHand
         on={hand === 'left'}
         onClick={() => {
@@ -243,6 +261,22 @@ const labelStyle = {
 type ToggleIconProps = {
   on: boolean
   onClick: (e: React.MouseEvent) => void
+}
+
+function TogglePractice({ on, onClick }: ToggleIconProps) {
+  const labelText = on ? 'Practice On' : 'Practice Off'
+
+  return (
+    <button className="flex flex-col items-center">
+      <Target
+        height={32}
+        width={32}
+        className={clsx('transition cursor-pointer', on ? 'text-purple-primary' : 'text-gray-400 hover:text-purple-hover')}
+        onClick={onClick}
+      />
+      <span style={labelStyle}>{labelText}</span>
+    </button>
+  )
 }
 
 function ToggleLeftHand({ on, onClick }: ToggleIconProps) {

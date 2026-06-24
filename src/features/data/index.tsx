@@ -45,6 +45,10 @@ async function fetchSong(id: string, source: SongSource): Promise<Song> {
       })
       .then((buffer: ArrayBuffer) => parseMidi(new Uint8Array(buffer)))
   } else if (source === 'upload') {
+    const uploadedSong = persistence.hasUploadedSong(id)
+    if (uploadedSong) {
+      return uploadedSong
+    }
     const file = persistence.getUploadedFile(id)
     if (!file) {
       throw new Error(`Could not find uploaded file for ${id}`)

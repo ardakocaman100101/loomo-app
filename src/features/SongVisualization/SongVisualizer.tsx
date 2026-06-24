@@ -18,6 +18,7 @@ type CanvasRendererProps = {
   enableTouchscroll?: boolean
   game?: boolean
   zoomMode?: number
+  ppsScale?: number
 }
 
 function CanvasRenderer({
@@ -31,6 +32,7 @@ function CanvasRenderer({
   enableTouchscroll = false,
   game = false,
   zoomMode,
+  ppsScale,
 }: CanvasRendererProps) {
   const isReady = useRef(false)
   const { width, height, measureRef } = useSize()
@@ -58,7 +60,7 @@ function CanvasRenderer({
       coloredNotes: config.coloredNotes,
       windowWidth: width,
       height,
-      pps,
+      pps: pps * (ppsScale ?? 1),
       hands: handSettings,
       hand,
       ctx,

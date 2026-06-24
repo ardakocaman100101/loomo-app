@@ -169,7 +169,7 @@ export class Player {
           this.pressFeedback.set(midiNote, 'green')
         } else {
           this.store.set(this.score.good, increment)
-          this.pressFeedback.set(midiNote, 'purple')
+          this.pressFeedback.set(midiNote, 'blue')
         }
         this.store.set(this.score.streak, increment)
         this.hitNotes.add(lateNote)

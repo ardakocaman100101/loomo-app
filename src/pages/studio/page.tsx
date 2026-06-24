@@ -5,6 +5,7 @@ import { useSongMetadata } from "@/features/data/library";
 import { getSynthStub, Synth, InstrumentName } from "@/features/synth";
 import gmInstruments from "@/features/synth/instruments";
 import { songToMidiBytes } from "@/features/studio/midi-encoder";
+import { parseMidi } from "@/features/parsers";
 import * as persistence from "@/features/persist/persistence";
 import midiState from "@/features/midi";
 import { bytesToBase64 } from "@/utils";
@@ -31,8 +32,9 @@ import {
   FileMusic,
   SlidersHorizontal,
   Sparkles,
+  Target,
 } from "lucide-react";
-import type { Song, SongNote, Track, Tracks } from "@/types";
+import type { Song, SongNote, Track, Tracks, SongSource } from "@/types";
 
 // Pitch helpers
 const ROW_HEIGHT = 28; // px
@@ -71,6 +73,7 @@ export default function Studio() {
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [activeTrack, setActiveTrack] = useState<number>(0);
   const [selectedNoteIndex, setSelectedNoteIndex] = useState<number | null>(null);
+  const [clipboardNote, setClipboardNote] = useState<SongNote | null>(null);
 
   const [instrumentRange, setInstrumentRange] = useState(midiState.detectedRange);
   useEffect(() => {
@@ -125,8 +128,13 @@ export default function Studio() {
   }, [notes, instrumentRange]);
   
   // History for Undo/Redo
-  const [history, setHistory] = useState<{ notes: SongNote[]; tracks: Tracks }[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history, setHistory] = useState<{ notes: SongNote[]; tracks: Tracks }[]>([
+    {
+      notes: [],
+      tracks: { 0: { name: "Piano Melody", instrument: "acoustic_grand_piano", program: 0 } },
+    },
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
 
   // Layout states
   const MIN_ZOOM = 8; // minimum px per 16th note
@@ -161,6 +169,24 @@ export default function Studio() {
   const lastTimePlayedRef = useRef<number>(0);
   const synthCacheRef = useRef<{ [trackId: number]: Synth }>({});
   const activeNotesMapRef = useRef<Map<string, { note: SongNote; synth: Synth }>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [hasScrolledInitial, setHasScrolledInitial] = useState(false);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!hasScrolledInitial && scrollContainerRef.current && minMidi !== undefined) {
+      setTimeout(() => {
+        if (!scrollContainerRef.current) return;
+        let targetMidi = 60;
+        if (notes.length > 0) {
+          targetMidi = Math.min(...notes.map((n) => n.midiNote));
+        }
+        const offset = Math.max(0, (targetMidi - minMidi - 2) * KEY_WIDTH);
+        scrollContainerRef.current.scrollLeft = offset;
+      }, 50);
+      setHasScrolledInitial(true);
+    }
+  }, [isLoading, hasScrolledInitial, notes, minMidi]);
 
   // Undo/Redo tracking helper
   const pushHistory = useCallback((newNotes: SongNote[], newTracks: Tracks) => {
@@ -319,9 +345,56 @@ export default function Studio() {
 
   useEventListener<KeyboardEvent>("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    
+    // Playback
     if (e.code === "Space") {
       e.preventDefault();
       togglePlayback();
+      return;
+    }
+
+    // Delete
+    if ((e.key === "Delete" || e.key === "Backspace") && selectedNoteIndex !== null) {
+      e.preventDefault();
+      deleteNote(selectedNoteIndex);
+      return;
+    }
+
+    // Undo / Redo
+    if (e.metaKey || e.ctrlKey) {
+      const key = e.key.toLowerCase();
+      if (key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+      if (key === "y") {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Copy
+      if (key === "c" && selectedNoteIndex !== null) {
+        e.preventDefault();
+        setClipboardNote(notes[selectedNoteIndex]);
+        return;
+      }
+
+      // Paste
+      if (key === "v" && clipboardNote) {
+        e.preventDefault();
+        const newNote = { ...clipboardNote, time: playbackTime };
+        const updatedNotes = [...notes, newNote];
+        setNotes(updatedNotes);
+        setSelectedNoteIndex(updatedNotes.length - 1);
+        pushHistory(updatedNotes, tracks);
+        return;
+      }
     }
   });
 
@@ -602,7 +675,7 @@ export default function Studio() {
   };
 
   // Save changes and return to Practice/Play mode
-  const handleSaveAndPractice = () => {
+  const handleSaveAndPractice = (practiceTrackId?: number) => {
     stopPlayback();
     
     const targetId = id || crypto.randomUUID();
@@ -632,11 +705,21 @@ export default function Studio() {
       // Store in caching layer
       persistence.saveEditedMidi(targetId, base64Data);
 
-      // Mutate SWR key
-      mutate([targetId, targetSource]);
+      // Clear old settings so play mode correctly re-evaluates the new track structures
+      persistence.clearPersistedSongSettings(targetId);
+
+      // Update SWR cache directly to avoid useSWRImmutable showing stale data
+      const parsedSong = parseMidi(midiBytes as any);
+      mutate([targetId, targetSource], parsedSong, { revalidate: false });
 
       // Redirect
-      navigate(`/play?id=${encodeURIComponent(targetId)}&source=${targetSource}`);
+      const queryParams = new URLSearchParams();
+      queryParams.set("id", targetId);
+      queryParams.set("source", targetSource);
+      if (practiceTrackId !== undefined) {
+        queryParams.set("practiceTrackId", String(practiceTrackId));
+      }
+      navigate(`/play?${queryParams.toString()}`);
     } catch (e) {
       console.error("Failed to compile midi bytes", e);
       alert("Error saving song. Please check console.");
@@ -823,7 +906,7 @@ export default function Studio() {
           </button>
 
           <button
-            onClick={handleSaveAndPractice}
+            onClick={() => handleSaveAndPractice()}
             className="flex items-center gap-2 rounded-xl bg-[#a078ff] px-5 py-2 text-white font-semibold shadow-[0_0_20px_rgba(160,120,255,0.4)] hover:shadow-[0_0_25px_rgba(160,120,255,0.6)] hover:bg-[#b088ff] active:scale-95 transition-all text-sm"
           >
             <Save className="h-4 w-4" />
@@ -937,6 +1020,16 @@ export default function Studio() {
                           >
                             S
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveAndPractice(trackId);
+                            }}
+                            title="Practice this Track"
+                            className="p-1 rounded bg-white/5 text-white/50 border border-white/10 hover:text-white hover:bg-white/10 transition-colors"
+                          >
+                            <Target className="h-3 w-3" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1008,7 +1101,7 @@ export default function Studio() {
           </div>
 
           {/* Main Grid viewport */}
-          <div className="flex-1 overflow-auto relative" onWheel={handleWheel}>
+          <div className="flex-1 overflow-auto relative" onWheel={handleWheel} ref={scrollContainerRef}>
             <div
               className="relative"
               style={{
