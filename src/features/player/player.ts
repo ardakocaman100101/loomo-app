@@ -66,6 +66,7 @@ export class Player {
   currentSongTime = 0
   volume = atom(1)
   instrumentVolume = atom(1)
+  songLoop = atom(false)
 
   // TODO: Determine if MIDI always assumes BPM means quarter notes per minute.
   // Add link to documentation if so.
@@ -97,7 +98,7 @@ export class Player {
   missedNotes: Set<SongNote> = new Set()
   midiPressedNotes: Set<number> = new Set()
   pressFeedback: Map<number, string> = new Map()
-  lateNotes: Map<number, SongNote> = new Map()
+  lateNotes: Map<number, SongNote[]> = new Map()
   skipMissedNotes = false
   progressiveMode = atom(false)
   completedTracks = atom<Set<number>>(new Set<number>())
@@ -121,12 +122,20 @@ export class Player {
 
   clearMissedNotes_() {
     let missedNotes = 0
-    for (const [midiNote, missedNote] of this.lateNotes.entries()) {
-      const diff = this.calcDiff(this.currentSongTime, missedNote.time)
-      if (diff > this.goodRange) {
+    for (const [midiNote, list] of this.lateNotes.entries()) {
+      const remaining = list.filter((missedNote) => {
+        const diff = this.calcDiff(this.currentSongTime, missedNote.time)
+        if (diff > this.goodRange) {
+          missedNotes++
+          this.missedNotes.add(missedNote)
+          return false
+        }
+        return true
+      })
+      if (remaining.length === 0) {
         this.lateNotes.delete(midiNote)
-        missedNotes++
-        this.missedNotes.add(missedNote)
+      } else {
+        this.lateNotes.set(midiNote, remaining)
       }
     }
     if (missedNotes > 0) {
@@ -164,13 +173,19 @@ export class Player {
   processScoreData(midiNote: number) {
     // First check if the note already passed.
     this.clearMissedNotes_()
-    const lateNote = this.lateNotes.get(midiNote)
-    if (lateNote) {
+    const list = this.lateNotes.get(midiNote)
+    if (list && list.length > 0) {
+      const lateNote = list[0]
       const currentTime = this.currentSongTime
-      this.lateNotes.delete(midiNote)
       const diff = this.calcDiff(currentTime, lateNote.time)
       const isHit = diff < this.goodRange
       if (isHit) {
+        list.shift()
+        if (list.length === 0) {
+          this.lateNotes.delete(midiNote)
+        } else {
+          this.lateNotes.set(midiNote, list)
+        }
         if (diff < this.perfectRange) {
           this.store.set(this.score.perfect, increment)
           this.pressFeedback.set(midiNote, 'green')
@@ -450,10 +465,16 @@ export class Player {
     const prevTime = this.currentSongTime
     let time = this.updateTime_()
 
-    // If at the end of the song, stop playing.
+    // If at the end of the song, stop playing or loop.
     if (this.currentSongTime >= this.getDuration()) {
-      this.seek(this.getDuration())
-      this.pause()
+      if (this.store.get(this.songLoop)) {
+        this.seek(0)
+        return
+      } else {
+        this.seek(this.getDuration())
+        this.pause()
+        return
+      }
     }
 
     // If a range is selected and you just got past it then zoom back
@@ -507,7 +528,11 @@ export class Player {
           return
         } else if (!this.hitNotes.has(note) && prevTime < note.time) {
           // Only mark as late during the tick in which it is first played.
-          this.lateNotes.set(note.midiNote, note)
+          const list = this.lateNotes.get(note.midiNote) || []
+          if (!list.includes(note)) {
+            list.push(note)
+            this.lateNotes.set(note.midiNote, list)
+          }
         }
       }
       this.playing.push(note)

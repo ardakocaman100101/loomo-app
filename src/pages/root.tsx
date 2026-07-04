@@ -65,7 +65,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
   )
 }
 
+import { useEffect } from 'react'
+
 export default function App() {
+  useEffect(() => {
+    let timeouts = new Map<HTMLElement, any>()
+
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement
+      if (!target || !target.classList) return
+
+      // Add scrolling class
+      target.classList.add('is-scrolling')
+
+      // Clear existing timeout for this target
+      if (timeouts.has(target)) {
+        clearTimeout(timeouts.get(target))
+      }
+
+      // Hide scrollbar after 800ms of inactivity
+      const t = setTimeout(() => {
+        target.classList.remove('is-scrolling')
+        timeouts.delete(target)
+      }, 800)
+      
+      timeouts.set(target, t)
+    }
+
+    // Listen to all scroll events in capture phase
+    window.addEventListener('scroll', handleScroll, true)
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true)
+      timeouts.forEach((t) => clearTimeout(t))
+    }
+  }, [])
+
   return (
     <Providers>
       <Outlet />

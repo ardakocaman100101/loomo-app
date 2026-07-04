@@ -2,7 +2,6 @@ import { KEY_SIGNATURE, NOTE_LABELS } from '@/features/theory'
 import { Hand, HandSettings } from '@/types'
 import { Player } from '../player'
 import { renderFallingVis } from './falling-notes'
-import { renderSheetVis } from './sheet'
 import { CanvasItem } from './utils'
 
 export type GivenState = {
@@ -29,9 +28,5 @@ export type GivenState = {
 }
 
 export function render(state: Readonly<GivenState>) {
-  if (state.visualization === 'falling-notes') {
-    renderFallingVis(state)
-  } else {
-    renderSheetVis(state)
-  }
+  renderFallingVis(state)
 }

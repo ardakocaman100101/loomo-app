@@ -71,7 +71,7 @@ export function getPianoRollMeasurements(
   const whiteHeight = Math.floor(Math.min(5 * whiteWidth, 250)) // max-height: 250
   const blackWidth = whiteWidth / 2
   const blackHeight = Math.floor(whiteHeight * (2 / 3))
-  const whiteNoteSeparation = whiteWidth / 20
+  const whiteNoteSeparation = whiteWidth / 40
   const measurements: PianoRollMeasurements = {
     pianoWidth: width,
     whiteHeight,
@@ -116,36 +116,47 @@ export async function drawPianoRoll(
   ctx.fillRect(0, pianoTopY, measurements.pianoWidth, whiteHeight + 5)
   for (let [midiNote, lane] of whiteNotes) {
     const { left, width } = lane
-    ctx.fillStyle = whiteKeyBackground
     const heightPressedOffset = activeNotes.has(+midiNote) ? 2 : 0
     const height = whiteHeight + heightPressedOffset
+
+    // 3D Inner Shadow / Depth vertical linear gradient
+    const keyGrad = ctx.createLinearGradient(left, pianoTopY, left, pianoTopY + height)
+    keyGrad.addColorStop(0, '#ffffff')
+    keyGrad.addColorStop(0.1, '#fffdf0')
+    keyGrad.addColorStop(0.85, '#faf7e9')
+    keyGrad.addColorStop(1, '#e5e1d3')
+
+    ctx.fillStyle = keyGrad
     roundRect(ctx, left, pianoTopY, width - whiteNoteSeparation, height, {
       topRadius: 0,
-      bottomRadius: width / 10,
+      bottomRadius: width / 12,
     })
-    const isC = getKey(+midiNote) == 'C'
-    if (isC) {
-      const octave = getOctave(+midiNote)
-      ctx.fillStyle = 'rgb(190,190,190)'
-      ctx.font = `${width * 0.65}px ${TEXT_FONT}`
-      const txt = `C${octave}`
-      const { width: textWidth } = ctx.measureText(txt)
 
-      ctx.textBaseline = 'bottom'
-      ctx.fillText(
-        txt,
-        left + width / 2 - textWidth / 2 - measurements.whiteNoteSeparation / 2,
-        pianoTopY + whiteHeight - 8,
-      )
-    }
     const activeColor = activeNotes.get(+midiNote)
     if (activeColor) {
       ctx.fillStyle = resolveFeedbackColor(activeColor)
       roundRect(ctx, left, pianoTopY, width - whiteNoteSeparation, height, {
         topRadius: 0,
-        bottomRadius: width / 10,
+        bottomRadius: width / 12,
       })
     }
+
+    // Small, cohesive bottom hint label (low opacity warm cream/dark shade)
+    const keyName = getKey(+midiNote)
+    const isC = keyName === 'C'
+    const octave = getOctave(+midiNote)
+    const txt = isC ? `C${octave}` : keyName
+
+    ctx.fillStyle = 'rgba(19, 19, 19, 0.15)'
+    ctx.font = `bold ${width * 0.37}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+    const { width: textWidth } = ctx.measureText(txt)
+
+    ctx.textBaseline = 'bottom'
+    ctx.fillText(
+      txt,
+      left + width / 2 - textWidth / 2 - measurements.whiteNoteSeparation / 2,
+      pianoTopY + whiteHeight - 5,
+    )
   }
 
   for (let [midiNote, lane] of blackNotes) {
@@ -163,7 +174,7 @@ export async function drawPianoRoll(
       pianoTopY + blackHeight + 1.5,
       cornerWidth + 0.2,
       cornerWidth,
-      width / 4,
+      width / 22,
     )
     roundCorner(
       ctx,
@@ -171,14 +182,37 @@ export async function drawPianoRoll(
       pianoTopY + blackHeight + 1.5,
       -cornerWidth - 0.2,
       cornerWidth,
-      width / 4,
+      width / 22,
     )
 
     const isPressed = activeNotes.has(+midiNote)
     const images = getImages()
     let img = isPressed ? images.blackKeyPressed : images.blackKeyRaised
     let posY = isPressed ? pianoTopY : pianoTopY - 2
+
+    // Clip the black key image with a smoother bottom radius (3.5px)
+    ctx.save()
+    ctx.beginPath()
+    const clipR = 3.5
+    ctx.moveTo(left, posY)
+    ctx.lineTo(left + width, posY)
+    ctx.arcTo(left + width, posY + blackHeight, left, posY + blackHeight, clipR)
+    ctx.arcTo(left, posY + blackHeight, left, posY, clipR)
+    ctx.closePath()
+    ctx.clip()
+
     ctx.drawImage(img, left, posY, width, blackHeight)
+
+    // Soft dark matte overlay to tone down glossy highlight and cover bottom gloss
+    const blackGrad = ctx.createLinearGradient(left, posY, left, posY + blackHeight)
+    blackGrad.addColorStop(0, 'rgba(0, 0, 0, 0.32)') // Darken top
+    blackGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.40)') // Darken middle
+    blackGrad.addColorStop(0.92, 'rgba(0, 0, 0, 0.70)') // Start smoothing out bottom gloss
+    blackGrad.addColorStop(1, 'rgba(0, 0, 0, 0.90)') // Make bottom edge matte & dark
+    ctx.fillStyle = blackGrad
+    ctx.fillRect(left, posY, width, blackHeight)
+    ctx.restore()
+
     const blackActiveColor = activeNotes.get(+midiNote)
     if (blackActiveColor) {
       ctx.globalAlpha = 0.55
@@ -260,7 +294,7 @@ export function getVerticalPianoRollMeasurements(
   const whiteWidth = Math.floor(Math.min(5 * whiteHeight, 150)) // max-width
   const blackHeight = whiteHeight * 0.70
   const blackWidth = Math.floor(whiteWidth * (2 / 3))
-  const whiteNoteSeparation = whiteHeight / 20
+  const whiteNoteSeparation = whiteHeight / 40
   const measurements: VerticalPianoRollMeasurements = {
     pianoHeight: height,
     whiteWidth,

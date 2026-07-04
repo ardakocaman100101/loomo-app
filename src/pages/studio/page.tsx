@@ -35,6 +35,7 @@ import {
   Target,
   SkipBack,
   SkipForward,
+  Repeat,
 } from "lucide-react";
 import type { Song, SongNote, Track, Tracks, SongSource } from "@/types";
 import { Logo } from "@/icons";
@@ -68,7 +69,8 @@ export default function Studio() {
   const songMeta = id && source ? useSongMetadata(id, source) : undefined;
 
   // Core state
-  const [songName, setSongName] = useState("My Studio Sketch");
+  const [songName, setSongName] = useState("Untitled Song");
+  const [isLooping, setIsLooping] = useState(false);
   const [notes, setNotes] = useState<SongNote[]>([]);
   const [tracks, setTracks] = useState<Tracks>({
     0: { name: "Piano Melody", instrument: "acoustic_grand_piano", program: 0 },
@@ -99,11 +101,6 @@ export default function Studio() {
     let start = 36;
     let end = 96;
 
-    if (instrumentRange) {
-      start = instrumentRange.start;
-      end = instrumentRange.end;
-    }
-
     let k = 0;
     if (songStart < start || songEnd > end) {
       const shiftDown = Math.ceil((start - songStart) / 12);
@@ -128,7 +125,7 @@ export default function Studio() {
       minMidi: start + k * 12,
       maxMidi: end + k * 12,
     };
-  }, [notes, instrumentRange]);
+  }, [notes]);
   
   // History for Undo/Redo
   const [history, setHistory] = useState<{ notes: SongNote[]; tracks: Tracks }[]>([
@@ -262,7 +259,7 @@ export default function Studio() {
     if (loadedSong) {
       // Reset scroll so it re-initializes with the real notes after this render
       scrollInitializedRef.current = false;
-      setSongName(songMeta?.title || "Edited Song");
+      setSongName(songMeta?.title || "Untitled Song");
       setNotes(loadedSong.notes || []);
       setTracks(loadedSong.tracks || {
         0: { name: "Melody", instrument: "acoustic_grand_piano", program: 0 },
@@ -306,16 +303,26 @@ export default function Studio() {
 
   const tick = useCallback(() => {
     const now = performance.now() / 1000;
-    const elapsed = now - startTimeRef.current;
+    let elapsed = now - startTimeRef.current;
     
     // Check for loop end
     if (elapsed >= totalDuration) {
-      startTimeRef.current = now;
-      lastTimePlayedRef.current = 0;
-      setPlaybackTime(0);
-      playbackTimeRef.current = 0;
-      stopAllNotes();
-      return;
+      if (isLooping) {
+        startTimeRef.current = now;
+        lastTimePlayedRef.current = 0;
+        setPlaybackTime(0);
+        playbackTimeRef.current = 0;
+        stopAllNotes();
+        elapsed = 0;
+      } else {
+        setIsPlaying(false);
+        startTimeRef.current = now;
+        lastTimePlayedRef.current = 0;
+        setPlaybackTime(0);
+        playbackTimeRef.current = 0;
+        stopAllNotes();
+        return;
+      }
     }
 
     setPlaybackTime(elapsed);
@@ -357,7 +364,7 @@ export default function Studio() {
 
     lastTimePlayedRef.current = current;
     playbackIntervalRef.current = requestAnimationFrame(tick);
-  }, [notes, totalDuration, mutedTracks, soloTracks, stopAllNotes]);
+  }, [notes, totalDuration, mutedTracks, soloTracks, stopAllNotes, isLooping]);
 
   const togglePlayback = useCallback(() => {
     if (isPlaying) {
@@ -924,18 +931,21 @@ export default function Studio() {
           <button
             onClick={() => {
               stopPlayback();
-              navigate(id ? `/play?id=${encodeURIComponent(id)}&source=${source}` : "/");
+              navigate(-1);
             }}
             className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 border border-white/10 text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all text-[#d0bcff]"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Exit Studio</span>
+            <span>Back</span>
           </button>
           
           <div className="h-6 w-[1px] bg-[#353534]" />
 
           <div className="flex items-center gap-3">
-            <Logo height={32} width={50} className="w-[50px] h-8 shadow-[0_0_20px_rgba(160,120,255,0.4)]" />
+            <Link to="/" onClick={() => stopPlayback()} className="flex items-center gap-2 group mr-2">
+              <Logo height={32} width={50} className="w-[50px] h-8 shadow-[0_0_20px_rgba(160,120,255,0.4)] group-hover:scale-105 transition-all cursor-pointer" />
+              <span className="text-xl font-bold tracking-tight text-white group-hover:text-[#d0bcff] transition-all cursor-pointer">loomo</span>
+            </Link>
             <input
               type="text"
               value={songName}
@@ -975,6 +985,15 @@ export default function Studio() {
               className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-[#e5e2e1]/80 hover:text-white"
             >
               <SkipForward className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setIsLooping(!isLooping)}
+              title="Toggle Loop"
+              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
+                isLooping ? "bg-[#d0bcff]/20 text-[#d0bcff] border border-[#d0bcff]/30" : "bg-white/5 hover:bg-white/10 text-[#e5e2e1]/80"
+              }`}
+            >
+              <Repeat className="h-4 w-4" />
             </button>
           </div>
 
@@ -1024,7 +1043,7 @@ export default function Studio() {
             className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 hover:bg-white/10 transition-all text-sm font-medium border border-white/15"
           >
             <Download className="h-4 w-4 text-[#cbc3d7]" />
-            <span className="hidden sm:inline">Export MIDI</span>
+            <span className="hidden sm:inline">Export</span>
           </button>
 
           <button
@@ -1032,7 +1051,7 @@ export default function Studio() {
             className="flex items-center gap-2 rounded-xl bg-[#a078ff] px-5 py-2 text-white font-semibold shadow-[0_0_20px_rgba(160,120,255,0.4)] hover:shadow-[0_0_25px_rgba(160,120,255,0.6)] hover:bg-[#b088ff] active:scale-95 transition-all text-sm"
           >
             <Save className="h-4 w-4" />
-            <span>Save & Practice</span>
+            <span>Play</span>
           </button>
         </div>
       </header>
@@ -1058,13 +1077,13 @@ export default function Studio() {
               className="flex h-full flex-col border-r border-[#353534]/50 bg-[#171717] overflow-hidden select-none"
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-[#353534]/30">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#cbc3d7]">Tracks Arranger</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#cbc3d7]">Tracks</span>
                 <button
                   onClick={addTrack}
                   className="flex items-center gap-1 text-[11px] font-bold text-[#d0bcff] hover:text-[#b088ff] px-2 py-1 bg-[#d0bcff]/5 rounded-lg border border-[#d0bcff]/10 hover:bg-[#d0bcff]/10"
                 >
                   <Plus className="h-3 w-3" />
-                  Add Track
+                  Add
                 </button>
               </div>
 
@@ -1376,12 +1395,20 @@ export default function Studio() {
                     onMouseDown={() => handleKeyMouseDown(key)}
                     onMouseUp={() => handleKeyMouseUp(key)}
                     onMouseLeave={() => handleKeyMouseUp(key)}
-                    className={`relative flex h-full items-center justify-center border-r border-[#353534]/30 px-2 cursor-pointer transition-colors active:bg-[#a078ff]/30 ${
-                      isBlack ? 'bg-[#111] text-white/40 text-[9px]' : 'bg-white text-black text-[10px]'
+                    className={`relative flex h-full flex-col justify-end pb-1.5 px-0.5 cursor-pointer transition-colors active:bg-[#a078ff]/30 ${
+                      isBlack
+                        ? 'bg-[#121212] border-r border-black/45 shadow-[inset_0_-8px_16px_rgba(255,255,255,0.01),inset_0_1px_2px_rgba(0,0,0,0.85)]'
+                        : 'bg-[#FAF9F6] border-r border-[#d4cfc5]/35 shadow-[inset_0_-6px_12px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.9)]'
                     }`}
                     style={{ minWidth: `${KEY_WIDTH}px`, width: `${KEY_WIDTH}px` }}
                   >
-                    <span className="font-semibold">{getNoteName(key)}</span>
+                    <span
+                      className={`font-mono text-[8.5px] font-medium tracking-tighter text-center w-full uppercase ${
+                        isBlack ? 'text-[#FAF9F6]/25' : 'text-[#131313]/40'
+                      }`}
+                    >
+                      {getNoteName(key)}
+                    </span>
                   </div>
                 );
               })}

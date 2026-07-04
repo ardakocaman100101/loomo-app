@@ -20,7 +20,7 @@ import { useAtomValue } from 'jotai'
 import { AlertCircle, ArrowLeft, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import { SettingsPanel, TopBar, TrackHUD } from './components'
+import { TopBar, TrackHUD } from './components'
 import { MidiModal } from './components/MidiModal'
 import { StatsPopup } from './components/StatsPopup'
 
@@ -107,11 +107,45 @@ export default function PlaySongPage() {
   id = decodeURIComponent(id)
 
   const player = usePlayer()
-  const [settingsOpen, setSettingsPanel] = useState(false)
   const [isMidiModalOpen, setMidiModal] = useState(false)
   const [statsVisible, setStatsVisible] = useState(true)
-  const ppsScales = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
-  const [scaleIndex, setScaleIndex] = useState(2)
+  const ppsScales = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0]
+  const [scaleIndex, setScaleIndex] = useState(3)
+
+  const currentBpm = useAtomValue(player.currentBpm)
+  const bpmModifier = useAtomValue(player.bpmModifier)
+
+  const handleDecreaseBpm10 = React.useCallback(() => {
+    const newBpm = Math.max(20, currentBpm - 10)
+    const newModifier = bpmModifier * (newBpm / currentBpm)
+    player.store.set(player.bpmModifier, Math.round(newModifier * 100) / 100)
+    const backingTrack = player.getSong()?.backing
+    if (backingTrack) {
+      backingTrack.playbackRate = newModifier
+    }
+  }, [currentBpm, bpmModifier, player])
+
+  const handleIncreaseBpm10 = React.useCallback(() => {
+    const newBpm = Math.min(300, currentBpm + 10)
+    const newModifier = bpmModifier * (newBpm / currentBpm)
+    player.store.set(player.bpmModifier, Math.round(newModifier * 100) / 100)
+    const backingTrack = player.getSong()?.backing
+    if (backingTrack) {
+      backingTrack.playbackRate = newModifier
+    }
+  }, [currentBpm, bpmModifier, player])
+
+  const handleBpmInputChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10)
+    if (!isNaN(val) && val >= 20 && val <= 300) {
+      const newModifier = bpmModifier * (val / currentBpm)
+      player.store.set(player.bpmModifier, Math.round(newModifier * 100) / 100)
+      const backingTrack = player.getSong()?.backing
+      if (backingTrack) {
+        backingTrack.playbackRate = newModifier
+      }
+    }
+  }, [currentBpm, bpmModifier, player])
 
   const handleWheel = React.useCallback((e: React.WheelEvent) => {
     if (e.ctrlKey) {
@@ -134,6 +168,7 @@ export default function PlaySongPage() {
   )
   const isLooping = !!range
   const requiresPermission = useAtomValue(requiresPermissionAtom)
+  const songLoop = useAtomValue(player.songLoop)
 
   const [songConfig, setSongConfig] = useSongSettings(id)
   const isRecording = !!recording
@@ -391,6 +426,8 @@ export default function PlaySongPage() {
               onTogglePlaying={() => player.toggle()}
               onClickRestart={() => player.restart()}
               onClickSkipToEnd={() => player.seek(player.getDuration())}
+              isLooping={songLoop}
+              onClickToggleLoop={() => player.store.set(player.songLoop, !songLoop)}
               onClickBack={() => {
                 player.stop()
                 navigate(`/studio?id=${encodeURIComponent(id)}&source=${source}`)
@@ -399,38 +436,14 @@ export default function PlaySongPage() {
                 e.stopPropagation()
                 setMidiModal(!isMidiModalOpen)
               }}
-              onClickSettings={(e) => {
-                e.stopPropagation()
-                setSettingsPanel(!settingsOpen)
-              }}
               onClickStats={(e) => {
                 setStatsVisible(!statsVisible)
               }}
               onToggleWaiting={() => setSongConfig({ ...songConfig, waiting: !waiting })}
               isWaiting={waiting}
-              settingsOpen={settingsOpen}
               statsVisible={statsVisible}
             />
             <MidiModal isOpen={isMidiModalOpen} onClose={() => setMidiModal(false)} />
-            {settingsOpen && (
-              <SettingsPanel
-                onClose={() => setSettingsPanel(false)}
-                onChange={setSongConfig}
-                config={songConfig}
-                song={song}
-                onLoopToggled={handleLoopingToggle}
-                isLooping={isLooping}
-              />
-            )}
-            {song && (
-              <TrackHUD
-                song={song}
-                config={songConfig}
-                onToggleMute={handleToggleMute}
-                onSolo={handleSolo}
-                onTogglePractice={handleTogglePractice}
-              />
-            )}
             <div className="relative min-w-full">
               <SongScrubBar
                 rangeSelection={selectedRange}
@@ -439,19 +452,62 @@ export default function PlaySongPage() {
               />
             </div>
             {statsVisible && <StatsPopup />}
-            <div className="absolute left-4 top-20 z-30 flex flex-col gap-2">
-              <button
-                className="cursor-pointer rounded-full bg-black/30 p-2 text-white transition hover:bg-black/50 pointer-events-auto"
-                onClick={() => setScaleIndex(i => Math.min(ppsScales.length - 1, i + 1))}
-              >
-                <ZoomIn className="h-5 w-5" />
-              </button>
-              <button
-                className="cursor-pointer rounded-full bg-black/30 p-2 text-white transition hover:bg-black/50 pointer-events-auto"
-                onClick={() => setScaleIndex(i => Math.max(0, i - 1))}
-              >
-                <ZoomOut className="h-5 w-5" />
-              </button>
+            <div className="absolute left-4 top-20 z-30 flex flex-col gap-4 pointer-events-auto">
+              <div className="flex items-stretch gap-3">
+                {/* BPM Ticket */}
+                <div className="flex flex-col justify-between rounded-[20px] bg-black/45 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),0_8px_32px_0_rgba(0,0,0,0.37)] border border-white/5 p-3 w-[168px]">
+                  <span className="text-[12px] font-black uppercase tracking-[0.18em] text-[#b08eff] text-center mb-1.5 select-none">TEMPO (BPM)</span>
+                  <div className="flex items-center justify-between gap-1">
+                    <button
+                      className="cursor-pointer text-white/50 hover:text-white font-light text-2xl w-8 h-8 flex items-center justify-center transition select-none bg-transparent border-0"
+                      onClick={handleDecreaseBpm10}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={Math.round(currentBpm)}
+                      onChange={handleBpmInputChange}
+                      className="bg-transparent text-white font-bold text-center text-lg w-14 outline-none border-0 focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      className="cursor-pointer text-white/50 hover:text-white font-light text-2xl w-8 h-8 flex items-center justify-center transition select-none bg-transparent border-0"
+                      onClick={handleIncreaseBpm10}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Merged Zoom Controls */}
+                <div className="flex flex-col rounded-[20px] bg-black/45 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),0_8px_32px_0_rgba(0,0,0,0.37)] border border-white/5 overflow-hidden w-[52px] justify-between">
+                  <button
+                    className="cursor-pointer flex-1 p-2 text-white/70 hover:text-white transition hover:bg-white/5 flex items-center justify-center border-0 bg-transparent"
+                    onClick={() => setScaleIndex(i => Math.min(ppsScales.length - 1, i + 1))}
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="h-5 w-5" />
+                  </button>
+                  <div className="h-[1px] bg-white/10 w-full" />
+                  <button
+                    className="cursor-pointer flex-1 p-2 text-white/70 hover:text-white transition hover:bg-white/5 flex items-center justify-center border-0 bg-transparent"
+                    onClick={() => setScaleIndex(i => Math.max(0, i - 1))}
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Tracks (Instruments) Box */}
+              {song && (
+                <TrackHUD
+                  song={song}
+                  config={songConfig}
+                  onToggleMute={handleToggleMute}
+                  onTogglePractice={handleTogglePractice}
+                />
+              )}
             </div>
           </>
         )}

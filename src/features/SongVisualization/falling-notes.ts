@@ -22,6 +22,32 @@ import {
 } from './utils'
 
 const TEXT_FONT = 'monospace'
+
+// Memoized subtle noise pattern to prevent banding and add premium matte texture
+let noisePattern: CanvasPattern | null = null
+function getNoisePattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  if (noisePattern) return noisePattern
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 128
+  const offCtx = canvas.getContext('2d')
+  if (!offCtx) return null
+
+  const imageData = offCtx.createImageData(128, 128)
+  const data = imageData.data
+  for (let i = 0; i < data.length; i += 4) {
+    const v = Math.random() > 0.5 ? 255 : 0
+    data[i] = v
+    data[i + 1] = v
+    data[i + 2] = v
+    data[i + 3] = Math.floor(Math.random() * 6) // Max ~2.3% opacity
+  }
+  offCtx.putImageData(imageData, 0, 0)
+  noisePattern = ctx.createPattern(canvas, 'repeat')
+  return noisePattern
+}
+
 const colors = {
   right: {
     black: palette.purple.dark,
@@ -121,24 +147,11 @@ function deriveState(state: GivenState): State {
   return lastState
 }
 
-function getKeyboardRange(
+export function getKeyboardRange(
   songStart: number,
   songEnd: number,
   instrumentRange: { start: number; end: number } | null,
 ) {
-  // Snap to the nearest C octaves (multiples of 12)
-  let start = Math.floor(songStart / 12) * 12
-  let end = Math.ceil(songEnd / 12) * 12
-
-  // Ensure minimum of 1 octave (13 keys, e.g. C to C)
-  if (end - start < 12) {
-    end = start + 12
-  }
-
-  // Constrain to valid piano MIDI range (A0 = 21, C8 = 108)
-  start = Math.max(21, start)
-  end = Math.min(108, end)
-
   let k = 0
   if (instrumentRange) {
     const instStart = instrumentRange.start
@@ -163,6 +176,28 @@ function getKeyboardRange(
   // Shift incoming hardware MIDI notes by k octaves so the user can play the song
   midiState.midiOctaveDiff = k
 
+  // Determine bounds by taking the union of the song's range and the shifted instrument's range
+  let displayStart = songStart
+  let displayEnd = songEnd
+  
+  if (instrumentRange) {
+    displayStart = Math.min(songStart, instrumentRange.start + k * 12)
+    displayEnd = Math.max(songEnd, instrumentRange.end + k * 12)
+  }
+
+  // Snap to the nearest C octaves (multiples of 12)
+  let start = Math.floor(displayStart / 12) * 12
+  let end = Math.ceil(displayEnd / 12) * 12
+
+  // Ensure minimum of 1 octave (13 keys, e.g. C to C)
+  if (end - start < 12) {
+    end = start + 12
+  }
+
+  // Constrain to valid piano MIDI range (A0 = 21, C8 = 108)
+  start = Math.max(21, start)
+  end = Math.min(108, end)
+
   return { 
     startNote: start, 
     endNote: end 
@@ -176,18 +211,50 @@ function getFallingNoteItemsInView<T>(state: State): CanvasItem[] {
   // startPred: start collecting when the top of the note enters the bottom of the screen
   let startPred = (item: CanvasItem) => getItemStartEnd(item, state).end <= state.height
   // endPred: stop collecting when the bottom of the note is completely above the screen
-  let endPred = (item: CanvasItem) => getItemStartEnd(item, state).start < 0
+  // In 3D mode with beta=3.0, notes remain visible further up the screen.
+  let endPred = (item: CanvasItem) => getItemStartEnd(item, state).start < -state.height * 2.5
   return getItemsInView(state, startPred, endPred)
+}
+
+function projectPoint(x: number, y: number, state: State): { x: number; y: number; scale: number } {
+  const anchorY = state.pianoTopY
+  const d = anchorY - y
+  if (d <= 0) {
+    return { x, y, scale: 1 }
+  }
+  const beta = 3.0
+  const scale = anchorY / (anchorY + d / beta)
+  const centerX = state.windowWidth / 2
+  const px = centerX + (x - centerX) * scale
+  const py = anchorY - d * scale
+  return { x: px, y: py, scale }
 }
 
 export function renderFallingVis(givenState: GivenState): void {
   const state: State = deriveState(givenState)
-  state.ctx.fillStyle = '#2e2e2e' // background color
+  // Deep charcoal radial gradient fading to pure black
+  const cx = state.windowWidth / 2
+  const cy = state.height / 2
+  const radius = Math.max(state.windowWidth, state.height)
+  
+  const bgGrad = state.ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
+  bgGrad.addColorStop(0, '#242424') // Lighter charcoal center
+  bgGrad.addColorStop(0.7, '#0a0a0a') // Deep black mid
+  bgGrad.addColorStop(1, '#000000') // Pure black edges
+  
+  state.ctx.fillStyle = bgGrad
   state.ctx.fillRect(0, 0, state.windowWidth, state.height)
+
+  // Apply subtle matte noise texture overlay
+  const pattern = getNoisePattern(state.ctx)
+  if (pattern) {
+    state.ctx.fillStyle = pattern
+    state.ctx.fillRect(0, 0, state.windowWidth, state.height)
+  }
 
   const items = getFallingNoteItemsInView(state)
 
-  renderOctaveRuler(state)
+  renderLanes(state)
   renderHitLine(state)
 
   for (let i of items) {
@@ -240,11 +307,10 @@ function renderHitLine(state: State) {
   const { ctx, noteHitY, windowWidth } = state
   ctx.save()
   
-  // Dashed baseline just above the keyboard
   ctx.beginPath()
-  ctx.setLineDash([8, 5])
-  ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)'
-  ctx.lineWidth = 3
+  ctx.setLineDash([])
+  ctx.strokeStyle = 'rgba(129, 71, 235, 1)'
+  ctx.lineWidth = 6
   ctx.moveTo(0, noteHitY)
   ctx.lineTo(windowWidth, noteHitY)
   ctx.stroke()
@@ -282,7 +348,7 @@ function getNoteColor(state: State, note: SongNote, isActiveTarget: boolean): st
 }
 
 function renderRange(state: State) {
-  const { ctx, height, noteHitY, pps } = state
+  const { ctx, pps } = state
   if (!state.selectedRange) {
     return
   }
@@ -292,26 +358,62 @@ function renderRange(state: State) {
   const duration = end - start
   const canvasY = getItemStartEnd({ type: 'note', time: start, duration } as CanvasItem, state).start
   const rectHeight = duration * pps
+  const posY = canvasY
+  const tailTopY = canvasY - rectHeight
+
+  // Project the 4 corners of the full-width range selection block
+  const bottomLeft = projectPoint(0, posY, state)
+  const bottomRight = projectPoint(state.windowWidth, posY, state)
+  const topRight = projectPoint(state.windowWidth, tailTopY, state)
+  const topLeft = projectPoint(0, tailTopY, state)
+
   ctx.fillStyle = colors.rangeSelectionFill
   ctx.globalAlpha = 0.5
-  ctx.fillRect(0, canvasY - rectHeight, state.windowWidth, rectHeight)
+  
+  ctx.beginPath()
+  ctx.moveTo(bottomLeft.x, bottomLeft.y)
+  ctx.lineTo(bottomRight.x, bottomRight.y)
+  ctx.lineTo(topRight.x, topRight.y)
+  ctx.lineTo(topLeft.x, topLeft.y)
+  ctx.closePath()
+  ctx.fill()
+  
   ctx.restore()
 }
 
-function renderOctaveRuler(state: State) {
+function renderLanes(state: State) {
   const { ctx } = state
   ctx.save()
-  ctx.lineWidth = 2
+  
+  const segments = 16
+  const yStart = -state.height * 2.5
+  const yEnd = state.pianoTopY
+  const yStep = (yEnd - yStart) / segments
+
   for (let [midiNote, lane] of Object.entries(state.pianoMeasurements.lanes)) {
-    const key = getKey(+midiNote)
-    const { left } = lane
-    if (key === 'C') {
-      ctx.strokeStyle = colors.octaveLine
-      line(ctx, left, 0, left, state.pianoTopY)
-    }
-    if (key === 'F') {
-      ctx.strokeStyle = colors.measure
-      line(ctx, left, 0, left, state.pianoTopY)
+    const midiNum = +midiNote
+    if (isBlack(midiNum)) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.03)'
+      
+      ctx.beginPath()
+      // Left boundary of the lane going down
+      const pStart = projectPoint(lane.left, yStart, state)
+      ctx.moveTo(pStart.x, pStart.y)
+      for (let j = 1; j <= segments; j++) {
+        const y = yStart + j * yStep
+        const p = projectPoint(lane.left, y, state)
+        ctx.lineTo(p.x, p.y)
+      }
+      
+      // Right boundary of the lane going up
+      for (let j = segments; j >= 0; j--) {
+        const y = yStart + j * yStep
+        const p = projectPoint(lane.left + lane.width, y, state)
+        ctx.lineTo(p.x, p.y)
+      }
+      
+      ctx.closePath()
+      ctx.fill()
     }
   }
   ctx.restore()
@@ -330,7 +432,11 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   let posX = lane.left
   let noteWidth = lane.width
 
-  if (!isBlack(note.midiNote)) {
+  if (isBlack(note.midiNote)) {
+    const originalWidth = lane.width
+    noteWidth = originalWidth * 0.8
+    posX = lane.left + (originalWidth - noteWidth) / 2
+  } else {
     const leftBlack = state.pianoMeasurements.lanes[note.midiNote - 1]
     const rightBlack = state.pianoMeasurements.lanes[note.midiNote + 1]
     
@@ -364,33 +470,45 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   const circleCenterY = posY - circleRadius
   
   if (tailTopY < posY - circleRadius) {
-    const grad = ctx.createLinearGradient(circleCenterX, circleCenterY, circleCenterX, tailTopY)
+    const rectLeft = circleCenterX - circleRadius
+    const rectRight = circleCenterX + circleRadius
+    const rectTop = tailTopY
+    const rectBottom = circleCenterY
+
+    // Project 4 corners of the note tail trapezoid
+    const bottomLeft = projectPoint(rectLeft, rectBottom, state)
+    const bottomRight = projectPoint(rectRight, rectBottom, state)
+    const topRight = projectPoint(rectRight, rectTop, state)
+    const topLeft = projectPoint(rectLeft, rectTop, state)
+
+    const grad = ctx.createLinearGradient(circleCenterX, bottomLeft.y, circleCenterX, topLeft.y)
     grad.addColorStop(0, color)
     grad.addColorStop(1, color)
     ctx.fillStyle = grad
     ctx.strokeStyle = 'transparent'
     ctx.globalAlpha = 0.8
 
-    const rectTop = tailTopY
-    const rectHeight = circleCenterY - rectTop
-    const rectWidth = circleRadius * 2
-    const rectLeft = circleCenterX - circleRadius
-
-    roundRect(ctx, rectLeft, rectTop, rectWidth, rectHeight, {
-      topRadius: rectWidth * 0.35,
-      bottomRadius: 0,
-    })
+    ctx.beginPath()
+    ctx.moveTo(bottomLeft.x, bottomLeft.y)
+    ctx.lineTo(bottomRight.x, bottomRight.y)
+    ctx.lineTo(topRight.x, topRight.y)
+    ctx.lineTo(topLeft.x, topLeft.y)
+    ctx.closePath()
+    ctx.fill()
 
     ctx.globalAlpha = 1.0
   }
 
+  // Draw 3D projected note head
+  const center = projectPoint(circleCenterX, circleCenterY, state)
+  const radiusScaled = circleRadius * center.scale
 
   ctx.fillStyle = color
   ctx.beginPath()
-  ctx.arc(circleCenterX, circleCenterY, circleRadius, 0, 2 * Math.PI)
+  ctx.arc(center.x, center.y, radiusScaled, 0, 2 * Math.PI)
   ctx.fill()
 
-  ctx.lineWidth = 2
+  ctx.lineWidth = Math.max(1, 2 * center.scale)
   ctx.strokeStyle = 'rgba(255,255,255,0.3)'
   ctx.stroke()
 
@@ -402,8 +520,8 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
     const noteText = noteLabels === 'alphabetical' ? key : getFixedDoNoteFromKey(key)
 
     const padding = 2
-    const maxWidth = circleRadius * 2 - padding * 2
-    let { fontPx, measuredWidth: textWidth } = getOptimalFontSize(
+    const maxWidth = (circleRadius * 2 - padding * 2) * center.scale
+    let { fontPx } = getOptimalFontSize(
       ctx,
       noteText,
       TEXT_FONT,
@@ -411,24 +529,23 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
     )
     fontPx = Math.min(fontPx, maxWidth * 0.8)
     ctx.font = `bold ${fontPx}px ${TEXT_FONT}`
-    ctx.fillText(noteText, circleCenterX, circleCenterY + fontPx * 0.05)
+    ctx.fillText(noteText, center.x, center.y + fontPx * 0.05)
   }
-
   ctx.restore()
 }
 
 function renderMeasure(measure: SongMeasure, state: State): void {
-  const { ctx, windowWidth } = state
+  const { ctx } = state
   ctx.save()
   const posY = getItemStartEnd(measure, state).start
 
-  ctx.strokeStyle = ctx.fillStyle = colors.measure
-  ctx.lineWidth = 2
-  line(ctx, 0, posY, windowWidth, posY)
-  ctx.strokeStyle = 'rgb(130,130,130)'
-  ctx.fillStyle = 'rgb(130,130,130)'
-  ctx.font = `16px ${TEXT_FONT}`
-  ctx.fillText(measure.number.toString(), 5, posY + 16)
+  // Project the text anchor position (left side of screen)
+  const pt = projectPoint(8, posY, state)
+
+  ctx.strokeStyle = 'rgba(130,130,130, 0.4)'
+  ctx.fillStyle = 'rgba(130,130,130, 0.4)'
+  ctx.font = `${Math.max(8, 14 * pt.scale)}px ${TEXT_FONT}`
+  ctx.fillText(measure.number.toString(), pt.x, pt.y + 16 * pt.scale)
   ctx.restore()
 }
 

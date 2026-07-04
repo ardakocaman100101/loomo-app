@@ -1,4 +1,4 @@
-import { Volume2, VolumeX, Target } from 'lucide-react'
+import { Volume2, VolumeX, Eye } from 'lucide-react'
 import { Song, SongConfig } from '@/types'
 import { formatInstrumentName } from '@/utils'
 import clsx from 'clsx'
@@ -12,7 +12,7 @@ type TrackHUDProps = {
     onTogglePractice: (trackId: number) => void
 }
 
-export default function TrackHUD({ song, config, onToggleMute, onSolo, onTogglePractice }: TrackHUDProps) {
+export default function TrackHUD({ song, config, onToggleMute, onTogglePractice }: Omit<TrackHUDProps, 'onSolo'>) {
     const tracks = Object.entries(song.tracks).filter(([_, t]) =>
         song.notes.some(n => n.track === Number(_))
     )
@@ -20,9 +20,9 @@ export default function TrackHUD({ song, config, onToggleMute, onSolo, onToggleP
     if (tracks.length <= 1) return null
 
     return (
-        <div className="fixed right-4 top-24 z-20 flex flex-col gap-2 rounded-xl bg-black/40 p-3 backdrop-blur-md border border-white/10 max-h-[60vh] overflow-y-auto w-48 shadow-2xl">
-            <div className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-white/50">
-                Instruments
+        <div className="flex flex-col gap-2 rounded-[20px] bg-black/45 p-3 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),0_8px_32px_0_rgba(0,0,0,0.37)] border border-white/5 max-h-[50vh] overflow-y-auto w-[232px] pointer-events-auto">
+            <div className="mb-3 text-[12px] font-black uppercase tracking-[0.18em] text-[#b08eff] text-center select-none">
+                TRACKS
             </div>
             {tracks.map(([idStr, track]) => {
                 const id = Number(idStr)
@@ -34,38 +34,33 @@ export default function TrackHUD({ song, config, onToggleMute, onSolo, onToggleP
                     <div
                         key={id}
                         className={clsx(
-                            "group flex flex-col gap-1 rounded-lg p-2 transition-all hover:bg-white/10",
-                            isMuted ? "opacity-50" : "opacity-100"
+                            "group flex flex-col gap-1 rounded-xl p-2 transition-all hover:bg-white/5",
+                            isMuted ? "opacity-45" : "opacity-100"
                         )}
                     >
                         <div className="flex items-center justify-between">
-                            <span className="truncate text-xs font-bold text-white max-w-[100px]" title={track.name}>
+                            <span className="truncate text-xs font-bold text-white max-w-[140px]" title={track.name}>
                                 {track.name || formatInstrumentName(settings?.instrument || track.instrument)}
                             </span>
-                            <div className="flex gap-1">
-                                <button
-                                    onClick={() => onSolo(id)}
-                                    className="px-1.5 py-0.5 text-[9px] font-bold text-black bg-white/80 rounded hover:bg-white transition"
-                                >
-                                    SOLO
-                                </button>
+                            <div className="flex items-center gap-1.5">
                                 <button
                                     onClick={() => onTogglePractice(id)}
                                     className={clsx(
-                                        "p-1 rounded transition",
-                                        settings?.practice ? "text-purple-400 bg-purple-500/20" : "text-white/30 hover:text-white"
+                                        "p-1 rounded transition select-none bg-transparent border-0",
+                                        settings?.practice ? "text-[#b08eff]" : "text-white/35 hover:text-white"
                                     )}
-                                    title="Practice this track"
+                                    title="Toggle note appearance"
                                 >
-                                    <Target size={14} />
+                                    <Eye size={15} />
                                 </button>
                                 <button
                                     onClick={() => onToggleMute(id)}
-                                    className="text-white hover:text-purple-400 transition"
+                                    className="text-white/35 hover:text-white transition select-none bg-transparent border-0 p-1"
+                                    title={isMuted ? "Unmute track" : "Mute track"}
                                 >
-                                    {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                                    {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
                                 </button>
-                            </div>
+                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">

@@ -1,6 +1,6 @@
 import { Tooltip } from '@/components'
 import { VolumeSliderButton } from '@/features/controls'
-import { Midi } from '@/icons'
+import { Logo, Midi } from '@/icons'
 import { isMobile } from '@/utils'
 import clsx from 'clsx'
 import {
@@ -10,6 +10,7 @@ import {
   Settings,
   SkipBack,
   SkipForward,
+  Repeat,
   Timer,
 } from 'lucide-react'
 import { MouseEvent, PropsWithChildren } from 'react'
@@ -51,13 +52,13 @@ type TopBarProps = {
   isPlaying: boolean
   title?: string
   onTogglePlaying: () => void
-  onClickSettings: (e: MouseEvent<any>) => void
   onClickBack: () => void
   onClickRestart: () => void
   onClickSkipToEnd: () => void
+  isLooping: boolean
+  onClickToggleLoop: () => void
   onClickMidi: (e: MouseEvent<any>) => void
   onClickStats: (e: MouseEvent<any>) => void
-  settingsOpen: boolean
   statsVisible: boolean
   isWaiting: boolean
   onToggleWaiting: () => void
@@ -67,11 +68,11 @@ export default function TopBar({
   isPlaying,
   isLoading,
   onTogglePlaying,
-  onClickSettings,
   onClickBack,
   onClickRestart,
   onClickSkipToEnd,
-  settingsOpen,
+  isLooping,
+  onClickToggleLoop,
   title,
   onClickMidi,
   onClickStats,
@@ -81,9 +82,16 @@ export default function TopBar({
 }: TopBarProps) {
   return (
     <div className="align-center relative z-10 flex h-[50px] min-h-[50px] w-screen justify-center gap-8 bg-[#292929] px-1">
-      <ButtonWithTooltip tooltip="Back" className="absolute! top-1/2 left-3 -translate-y-1/2">
-        <ArrowLeft size={24} onClick={onClickBack} />
-      </ButtonWithTooltip>
+      <div className="absolute! top-1/2 left-3 -translate-y-1/2 flex items-center gap-3">
+        <ButtonWithTooltip tooltip="Back">
+          <ArrowLeft size={24} onClick={onClickBack} />
+        </ButtonWithTooltip>
+        
+        <Link to="/" onClick={onClickBack} className="flex items-center gap-2 group select-none">
+          <Logo height={28} width={44} className="w-[44px] h-7 shadow-[0_0_15px_rgba(160,120,255,0.3)] group-hover:scale-105 transition-all cursor-pointer" />
+          <span className="text-lg font-bold tracking-tight text-white group-hover:text-[#d0bcff] transition-all cursor-pointer">loomo</span>
+        </Link>
+      </div>
       <div
         className={clsx(
           'flex h-full items-center gap-8',
@@ -96,6 +104,9 @@ export default function TopBar({
         <StatusIcon isPlaying={isPlaying} isLoading={isLoading} onTogglePlaying={onTogglePlaying} />
         <ButtonWithTooltip tooltip="Skip to End">
           <SkipForward size={24} onClick={onClickSkipToEnd} />
+        </ButtonWithTooltip>
+        <ButtonWithTooltip tooltip="Toggle Loop" isActive={isLooping} onClick={onClickToggleLoop}>
+          <Repeat size={24} />
         </ButtonWithTooltip>
         <ButtonWithTooltip tooltip="Wait Mode" isActive={isWaiting} onClick={onToggleWaiting}>
           <div className="relative">
@@ -110,9 +121,6 @@ export default function TopBar({
       <div className="mr-[20px] flex h-full items-center gap-8">
         <ButtonWithTooltip tooltip="Choose a MIDI device">
           <Midi size={24} onClick={onClickMidi} />
-        </ButtonWithTooltip>
-        <ButtonWithTooltip tooltip="Settings" isActive={settingsOpen}>
-          <Settings size={24} onClick={onClickSettings} />
         </ButtonWithTooltip>
         {!isMobile() && <VolumeSliderButton />}
         {

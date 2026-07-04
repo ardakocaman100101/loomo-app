@@ -146,3 +146,29 @@
     --ring: 263.4 70% 50.4%;
   }
 }
+
+/* Custom transient Apple-style scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.3s ease;
+}
+
+/* Show the thumb only during active scrolling or hover */
+.is-scrolling::-webkit-scrollbar-thumb,
+.is-scrolling ::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: padding-box;
+}
