@@ -45,7 +45,7 @@ async function fetchSong(id: string, source: SongSource): Promise<Song> {
       })
       .then((buffer: ArrayBuffer) => parseMidi(new Uint8Array(buffer)))
   } else if (source === 'upload') {
-    const uploadedSong = persistence.hasUploadedSong(id)
+    const uploadedSong = await persistence.getUploadedSong(id)
     if (uploadedSong) {
       return uploadedSong
     }

@@ -2,7 +2,7 @@ export type TableColumn<T, D extends keyof T = never> = {
   label: string
   id: D
   keep?: boolean
-  format?: (value: T[D]) => string | React.ReactNode
+  format?: (value: T[D], row: T) => string | React.ReactNode
   sort?: (a: T[D], b: T[D]) => -1 | 0 | 1
 }
 

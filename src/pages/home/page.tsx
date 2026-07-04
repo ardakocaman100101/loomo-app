@@ -3,6 +3,7 @@ import { User, Piano, Library, Settings, Home as HomeIcon, Upload, Play, Search,
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { UploadMidi, Sizer } from "@/components";
+import { Logo, Github } from "@/icons";
 
 export default function Home() {
   return (
@@ -29,29 +30,32 @@ export default function Home() {
 function Navbar() {
   return (
     <nav className="fixed top-0 w-full z-50 bg-[#131313]/80 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]">
-      <div className="flex justify-between items-center px-6 h-24 w-full max-w-7xl mx-auto">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="flex items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-[#a078ff] rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(160,120,255,0.4)]">
-                <Piano className="text-white w-6 h-6" />
-              </div>
-              <span className="text-2xl font-black tracking-tighter text-[#e5e2e1]">loomo</span>
-            </div>
+      <div className="flex justify-between items-center px-6 h-24 w-full max-w-7xl mx-auto relative">
+        
+        {/* Empty left side to balance */}
+        <div className="w-10 h-10" />
+
+        {/* Centered Logo + Title */}
+        <div className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center">
+          <Link to="/" className="flex items-center gap-3 transition hover:opacity-80">
+            <Logo height={32} width={64} className="w-16 h-8 shadow-[0_0_20px_rgba(160,120,255,0.4)]" />
+            <span className="text-3xl sm:text-4xl font-black tracking-tighter text-[#e5e2e1]">loomo</span>
           </Link>
         </div>
 
-        <div className="hidden md:flex items-center space-x-8">
-          <NavLink href="/" active>Home</NavLink>
-          <NavLink href="/freeplay">Practice</NavLink>
-          <NavLink href="/songs">Library</NavLink>
+        {/* Right Side: GitHub Icon */}
+        <div className="flex items-center gap-4">
+          <a
+            href="https://github.com/ardakocaman100101/loophesia"
+            target="_blank"
+            rel="noreferrer"
+            className="p-2 rounded-full hover:bg-[#3a3939] transition-all duration-300 text-[#cbc3d7] hover:text-[#d0bcff] active:scale-95"
+            title="GitHub Repository"
+          >
+            <Github size={24} />
+          </a>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button className="p-2 rounded-full hover:bg-[#3a3939] transition-colors duration-300 text-[#d0bcff] active:scale-95">
-            <User className="w-6 h-6" />
-          </button>
-        </div>
       </div>
     </nav>
   );
@@ -79,13 +83,11 @@ function Hero() {
         transition={{ duration: 0.8 }}
         className="space-y-6"
       >
-        <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[1.1] text-[#e5e2e1]">
-          loomo<br />
-          <span className="text-[#d0bcff] italic">for </span>
-          <span className="text-[#d0bcff] italic">MIDI Keyboards</span>
+        <h1 className="text-6xl md:text-8xl font-black tracking-tight leading-none bg-gradient-to-b from-white to-[#cbc3d5] bg-clip-text text-transparent">
+          loomo
         </h1>
-        <p className="text-[#cbc3d7] text-lg md:text-xl max-w-2xl mx-auto font-light leading-relaxed">
-          Open Source Live Looping Practice App
+        <p className="text-2xl md:text-3xl font-medium tracking-tight text-[#d0bcff] mt-2">
+          just make music
         </p>
       </motion.div>
 
@@ -119,9 +121,9 @@ function BentoGrid() {
           className="glass-card p-8 rounded-3xl bg-gradient-to-br from-[#a078ff]/20 to-transparent flex flex-col items-center text-center justify-center gap-6"
         >
           <BarChart2 className="text-[#d0bcff] w-16 h-16" />
-          <h3 className="text-2xl font-bold">Intelligent Analysis</h3>
+          <h3 className="text-2xl font-bold">Intelligent Layering</h3>
           <p className="text-[#cbc3d7] leading-relaxed">
-            loomo breaks down your MIDI files into melodic layers, rhythmic structures, and harmonic movements automatically.
+            loomo splits complex MIDI files into clean melodic layers. Practice in small, manageable steps at your own pace.
           </p>
         </motion.div>
         <motion.div
@@ -129,20 +131,19 @@ function BentoGrid() {
           className="glass-card p-8 rounded-3xl bg-gradient-to-br from-[#a078ff]/20 to-transparent flex flex-col items-center text-center justify-center gap-6"
         >
           <Activity className="text-[#d0bcff] w-16 h-16" />
-          <h3 className="text-2xl font-bold">Activity Insights</h3>
+          <h3 className="text-2xl font-bold">Create or Play</h3>
           <p className="text-[#cbc3d7] leading-relaxed">
-            loomo provides activity metrics to help you understand your practice patterns.
+            Upload your songs or play sample songs directly from the library. Start learning your favorite songs instantly.
           </p>
         </motion.div>
-
         <motion.div
           whileHover={{ scale: 1.02 }}
           className="glass-card p-8 rounded-3xl bg-gradient-to-br from-[#a078ff]/20 to-transparent flex flex-col items-center text-center justify-center gap-6"
         >
           <Cloud className="text-[#d0bcff] w-16 h-16" />
-          <h3 className="text-xl font-bold">Studio</h3>
-          <p className="text-sm text-[#cbc3d7]">
-            Create or edit your music in a simple DAW-like page
+          <h3 className="text-2xl font-bold">Studio</h3>
+          <p className="text-[#cbc3d7] leading-relaxed">
+            Edit your music in the built-in Loomo Studio. No heavy DAW or complex setup required, just create music
           </p>
         </motion.div>
       </div>

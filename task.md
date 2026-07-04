@@ -1,0 +1,13 @@
+- `[x]` Fix the title logic in `addUploadedSongs` so that it uses the folder name for multi-track uploads instead of the "Progressive:" prefix.
+- `[x]` Verify that the merged song is saved and displayed in the library with just the folder name.
+- `[x]` Replace beige background on `loomo_logo.png` with Loomo brand purple.
+- `[x]` Create square favicons and manifest icons from the logo.
+- `[x]` Update topbar and studio headers to use the new logo.
+- `[x]` Add Play and Studio action columns to the song library table.
+- `[x]` Correct logo rendering dimensions to a wide 2:1 aspect ratio to prevent squishing.
+- `[x]` Center logo and title in both the Home page Navbar and global AppBar.
+- `[x]` Remove topbar header page links.
+- `[x]` Place the GitHub icon on the right side of both headers instead of the profile user icon.
+- `[x]` Change hero title to "loomo" and slogan to "just make music".
+- `[x]` Adapt the keys color to dark black on the purple brand background.
+- `[x]` Regenerate tab favicons and PWA icons with the new black-keyed design.

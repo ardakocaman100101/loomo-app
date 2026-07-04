@@ -9,6 +9,7 @@ import {
   LucideProps,
   Settings,
   SkipBack,
+  SkipForward,
   Timer,
 } from 'lucide-react'
 import { MouseEvent, PropsWithChildren } from 'react'
@@ -53,6 +54,7 @@ type TopBarProps = {
   onClickSettings: (e: MouseEvent<any>) => void
   onClickBack: () => void
   onClickRestart: () => void
+  onClickSkipToEnd: () => void
   onClickMidi: (e: MouseEvent<any>) => void
   onClickStats: (e: MouseEvent<any>) => void
   settingsOpen: boolean
@@ -68,6 +70,7 @@ export default function TopBar({
   onClickSettings,
   onClickBack,
   onClickRestart,
+  onClickSkipToEnd,
   settingsOpen,
   title,
   onClickMidi,
@@ -87,10 +90,13 @@ export default function TopBar({
           'sm:absolute sm:left-1/2 sm:-translate-x-3/4',
         )}
       >
-        <ButtonWithTooltip tooltip="Restart">
+        <ButtonWithTooltip tooltip="Restart/Beginning">
           <SkipBack size={24} onClick={onClickRestart} />
         </ButtonWithTooltip>
         <StatusIcon isPlaying={isPlaying} isLoading={isLoading} onTogglePlaying={onTogglePlaying} />
+        <ButtonWithTooltip tooltip="Skip to End">
+          <SkipForward size={24} onClick={onClickSkipToEnd} />
+        </ButtonWithTooltip>
         <ButtonWithTooltip tooltip="Wait Mode" isActive={isWaiting} onClick={onToggleWaiting}>
           <div className="relative">
             <Midi size={20} />

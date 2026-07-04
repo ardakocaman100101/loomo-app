@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router'
 import { Table } from './components'
 import ManageFoldersForm from './components/AddFolderForm'
 import { SearchBox } from './components/Table/SearchBox'
+import { Play, Sliders } from 'lucide-react'
 
 // TODO: after an upload, scroll to the newly uploaded song / make it focused.
 export default function SelectSongPage() {
@@ -41,34 +42,19 @@ export default function SelectSongPage() {
       <Modal show={isUploadFormOpen} onClose={handleCloseAddNew}>
         <ManageFoldersForm onClose={handleCloseAddNew} />
       </Modal>
-      <div className="bg-purple-lightest flex min-h-screen w-full flex-col">
-        <div className="mx-auto flex w-full max-w-(--breakpoint-lg) grow flex-col p-6 pt-24">
-          <h2 className="text-3xl">Learn a song</h2>
+      <div className="bg-[#15121a] text-[#e7e0ec] selection:bg-[#d0bcff]/30 flex min-h-screen w-full flex-col relative overflow-hidden">
+        {/* Deep Purple Perspective Gradient */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[150%] h-1/2 glow-perspective" />
+          <div className="absolute top-1/4 right-0 w-96 h-96 bg-[#d0bcff]/10 blur-[120px] rounded-full" />
+        </div>
+
+        <div className="mx-auto flex w-full max-w-(--breakpoint-lg) grow flex-col p-6 pt-32 relative z-10">
+          <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.1] bg-gradient-to-r from-white via-[#e7e0ec] to-[#d0bcff] bg-clip-text text-transparent">
+            Select a Song
+          </h2>
           <Sizer height={8} />
-          <h3 className="text-base"> Select a song, choose your settings, and begin learning</h3>
-          <Sizer height={24} />
-          <div className="flex gap-4">
-            <SearchBox
-              placeholder={'Search Songs by Title or Artist'}
-              onSearch={setSearch}
-              autoFocus={true}
-            />
-            <UploadMidi
-              onUpload={(id: string) => navigate(`/studio?id=${id}&source=upload`)}
-              className="bg-purple-dark hover:bg-purple-hover flex items-center gap-2 rounded-md px-4 py-2 text-white transition"
-            />
-            <button
-              className={clsx(
-                'hidden flex-nowrap whitespace-nowrap sm:flex',
-                'items-center gap-1 rounded-md px-4 py-2',
-                'bg-purple-dark hover:bg-purple-hover text-white transition',
-              )}
-              onClick={handleAddNew}
-            >
-              <Plus width={20} height={20} />
-              <span>Manage Folders</span>
-            </button>
-          </div>
+          <h3 className="text-[#cbc3d5] font-light text-base md:text-lg max-w-2xl">Choose a song from your library and begin practicing</h3>
           <Sizer height={32} />
           <Table
             columns={[
@@ -78,6 +64,40 @@ export default function SelectSongPage() {
                 id: 'duration',
                 format: (n) => formatTime(Number(n)),
               },
+              {
+                label: 'Play',
+                id: 'id',
+                keep: true,
+                format: (id, row) => (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/play?id=${id}&source=${row.source || 'local'}`)
+                    }}
+                    className="p-2 rounded-xl bg-white/5 border border-white/10 text-[#d0bcff] hover:bg-[#a078ff]/20 hover:text-white active:scale-95 transition-all cursor-pointer"
+                    title="Play Song"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                  </button>
+                )
+              },
+              {
+                label: 'Studio',
+                id: 'id',
+                keep: true,
+                format: (id, row) => (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/studio?id=${id}&source=${row.source || 'local'}`)
+                    }}
+                    className="p-2 rounded-xl bg-white/5 border border-white/10 text-[#d0bcff] hover:bg-[#a078ff]/20 hover:text-white active:scale-95 transition-all cursor-pointer"
+                    title="Open in Studio"
+                  >
+                    <Sliders className="w-4 h-4" />
+                  </button>
+                )
+              }
             ]}
             getId={(s: SongMetadata) => s.id}
             rows={songs}

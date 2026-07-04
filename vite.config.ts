@@ -6,4 +6,10 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
   plugins: [devtoolsJson(), tailwindcss(), reactRouter(), tsconfigPaths()],
+  server: {
+    allowedHosts: [
+      'proddingly-ericeticolous-diego.ngrok-free.dev', // Allows this specific host
+      '.ngrok-free.dev'                                // Optional: Allows ANY future ngrok host you generate
+    ]
+  }
 })

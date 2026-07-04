@@ -15,7 +15,9 @@ type JotaiStore = ReturnType<typeof getDefaultStore>
 
 interface Score {
   perfect: PrimitiveAtom<number>
-  good: PrimitiveAtom<number>
+  early: PrimitiveAtom<number>
+  late: PrimitiveAtom<number>
+  good: Atom<number>
   missed: PrimitiveAtom<number>
   durationHeld: PrimitiveAtom<number>
   error: PrimitiveAtom<number>
@@ -26,11 +28,15 @@ interface Score {
 
 function getInitialScore(): Score {
   const perfect = atom(0)
-  const good = atom(0)
+  const early = atom(0)
+  const late = atom(0)
   const missed = atom(0)
   const error = atom(0)
   const durationHeld = atom(0)
   const streak = atom(0)
+
+  const good = atom((get) => get(early) + get(late))
+
   const combined = atom(
     (get) => get(perfect) * 100 + get(good) * 50 - get(error) * 25 + get(durationHeld),
   )
@@ -45,7 +51,7 @@ function getInitialScore(): Score {
     return get(perfect) + get(good)
   })
 
-  return { perfect, good, missed, error, durationHeld, combined, accuracy, streak }
+  return { perfect, early, late, good, missed, error, durationHeld, combined, accuracy, streak }
 }
 
 export type PlayerState = 'CannotPlay' | 'Playing' | 'Paused'
@@ -59,6 +65,7 @@ export class Player {
   trackConfigs: { [id: number]: TrackSetting } = {}
   currentSongTime = 0
   volume = atom(1)
+  instrumentVolume = atom(1)
 
   // TODO: Determine if MIDI always assumes BPM means quarter notes per minute.
   // Add link to documentation if so.
@@ -168,7 +175,7 @@ export class Player {
           this.store.set(this.score.perfect, increment)
           this.pressFeedback.set(midiNote, 'green')
         } else {
-          this.store.set(this.score.good, increment)
+          this.store.set(this.score.late, increment)
           this.pressFeedback.set(midiNote, 'blue')
         }
         this.store.set(this.score.streak, increment)
@@ -189,7 +196,7 @@ export class Player {
           this.store.set(this.score.perfect, increment)
           this.pressFeedback.set(midiNote, 'green')
         } else {
-          this.store.set(this.score.good, increment)
+          this.store.set(this.score.early, increment)
           this.pressFeedback.set(midiNote, 'yellow')
         }
 
@@ -272,6 +279,10 @@ export class Player {
     if (backingTrack) {
       backingTrack.volume = 0.15 * vol
     }
+  }
+
+  setInstrumentVolume(vol: number) {
+    this.store.set(this.instrumentVolume, vol)
   }
 
   setTrackVolume(track: number | string, vol: number) {
@@ -589,7 +600,8 @@ export class Player {
   resetStats_() {
     this.hitNotes.clear()
     this.missedNotes.clear()
-    this.store.set(this.score.good, 0)
+    this.store.set(this.score.early, 0)
+    this.store.set(this.score.late, 0)
     this.store.set(this.score.missed, 0)
     this.store.set(this.score.perfect, 0)
     this.store.set(this.score.error, 0)

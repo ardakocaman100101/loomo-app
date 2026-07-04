@@ -4,14 +4,26 @@ import { isBrowser } from '@/utils'
 import * as tonejs from '@tonejs/midi'
 import { useRef, useState } from 'react'
 
+let globalMidiAccess: MIDIAccess | null = null
+
 export async function getMidiInputs(): Promise<MIDIInputMap> {
   if (!isBrowser() || !window.navigator.requestMIDIAccess) {
     return new Map()
   }
 
   try {
-    const midiAccess = await window.navigator.requestMIDIAccess()
-    return midiAccess.inputs
+    if (!globalMidiAccess) {
+      globalMidiAccess = await window.navigator.requestMIDIAccess()
+      globalMidiAccess.onstatechange = (e) => {
+        if (e.port && e.port.type === 'input' && e.port.state === 'connected') {
+          const device = e.port as MIDIInput
+          if (!device.name?.toLowerCase().includes('through') && !isInputMidiDeviceEnabled(device)) {
+            enableInputMidiDevice(device)
+          }
+        }
+      }
+    }
+    return globalMidiAccess.inputs
   } catch (error) {
     console.error('Error accessing MIDI devices: ' + error)
     return new Map()
@@ -24,8 +36,18 @@ export async function getMidiOutputs(): Promise<MIDIOutputMap> {
   }
 
   try {
-    const midiAccess = await window.navigator.requestMIDIAccess({ sysex: false })
-    return midiAccess.outputs
+    if (!globalMidiAccess) {
+      globalMidiAccess = await window.navigator.requestMIDIAccess()
+      globalMidiAccess.onstatechange = (e) => {
+        if (e.port && e.port.type === 'input' && e.port.state === 'connected') {
+          const device = e.port as MIDIInput
+          if (!device.name?.toLowerCase().includes('through') && !isInputMidiDeviceEnabled(device)) {
+            enableInputMidiDevice(device)
+          }
+        }
+      }
+    }
+    return globalMidiAccess.outputs
   } catch (error) {
     console.error('Error accessing MIDI devices: ' + error)
     return new Map()
@@ -74,18 +96,15 @@ export function disableOutputMidiDevice(deviceParam: MIDIOutput) {
   enabledOutputDevices.delete(device.id)
 }
 
-setupMidiDeviceListeners()
-
-// Sets up listeners for all non-virtual MIDI input devices.
-// Skips "through" ports (often used for routing/echo) to avoid feedback loops.
-// Output devices are ignored by default and must be enabled manually.
-async function setupMidiDeviceListeners() {
+export async function initializeMidi() {
   const inputs = await getMidiInputs()
   for (const device of inputs.values()) {
     if (device.name?.toLowerCase().includes('through')) {
       continue
     }
-    enableInputMidiDevice(device)
+    if (!isInputMidiDeviceEnabled(device)) {
+      enableInputMidiDevice(device)
+    }
   }
   midiState.updateDetectedRange()
 }
@@ -157,7 +176,8 @@ function getKeyConfig() {
 const keyboardConfig: { [key: string]: [string, number] } = getKeyConfig()
 
 class MidiState {
-  octaveDiff = 0
+  octaveDiff = 0 // For PC keyboard
+  midiOctaveDiff = 0 // Used to auto-shift physical MIDI keyboard to match song octaves
   pressedNotes = new Map<number, { time: number; vel: number }>()
   keyPressedNotes = new Set<number>()
   listeners: Array<Function> = []
@@ -230,6 +250,7 @@ class MidiState {
   }
 
   handleKeyDown(e: KeyboardEvent) {
+    console.log('MidiState handleKeyDown', e.code, e.key)
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
     let { key, code, metaKey, ctrlKey, altKey } = e
@@ -366,9 +387,9 @@ function onMidiMessage(e: MIDIMessageEvent) {
 
   const { note, velocity, cc, value, type, timeStamp } = msg
   if (type === 'on' && velocity! > 0) {
-    midiState.press(note!, velocity!)
+    midiState.press(note! + midiState.midiOctaveDiff * 12, velocity!)
   } else if (type === 'off' || (type === 'on' && velocity === 0)) {
-    midiState.release(note!)
+    midiState.release(note! + midiState.midiOctaveDiff * 12)
   } else if (type === 'cc') {
     midiState.notify({
       type: 'cc',
@@ -455,4 +476,15 @@ export function useRecordMidi(state = midiState) {
   return { startRecording, stopRecording, isRecording }
 }
 
+// Call setup after midiState has been fully declared and instantiated
+setupMidiDeviceListeners()
+
+// Sets up listeners for all non-virtual MIDI input devices.
+// Skips "through" ports (often used for routing/echo) to avoid feedback loops.
+// Output devices are ignored by default and must be enabled manually.
+async function setupMidiDeviceListeners() {
+  await initializeMidi()
+}
+
 export default midiState
+

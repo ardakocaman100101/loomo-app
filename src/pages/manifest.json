@@ -1,6 +1,6 @@
 {
-  "name": "Loophesia",
-  "short_name": "loophesia",
+  "name": "loomo",
+  "short_name": "loomo",
   "description": "app for learning keyboard",
   "start_url": "/",
   "display": "standalone",

@@ -100,7 +100,18 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
   if (files.length === 0) throw new Error('No files provided')
 
   const isMultiFile = files.length > 1
-  const title = isMultiFile ? `Progressive: ${files[0].name.replace(/\.[^/.]+$/, '')}` : files[0].name.replace(/\.[^/.]+$/, '')
+  let title = files[0].name.replace(/\.[^/.]+$/, '')
+
+  if (isMultiFile) {
+    const firstFile = files[0]
+    if (firstFile.webkitRelativePath) {
+      const parts = firstFile.webkitRelativePath.split('/')
+      if (parts.length > 1) {
+        // Use the root folder name as the song title
+        title = parts[0]
+      }
+    }
+  }
 
   const currentUploaded = store.get(uploadedSongsAtom)
   const existing = currentUploaded.find(s => s.title === title)
@@ -200,7 +211,7 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
   store.set(uploadedFilesAtom, newFiles)
 
   // Store the pre-parsed merged song so the player can just load it.
-  Storage.set(id, {
+  const songData = {
     tracks: mergedTracks,
     duration: mergedDuration,
     notes: mergedNotes,
@@ -209,7 +220,11 @@ export async function addUploadedSongs(files: File[]): Promise<string> {
     ppq: parsedSongs[0].song.ppq,
     timeSignature: parsedSongs[0].song.timeSignature,
     keySignature: parsedSongs[0].song.keySignature,
-  })
+  }
+  Storage.set(id, songData)
+  
+  // Persist to IndexedDB so it's available in future sessions
+  await idb.set(`SONG_DATA_${id}`, songData)
 
   return id
 }
@@ -328,8 +343,14 @@ export function removeFolder(id: string) {
   scanFolders()
 }
 
-export function hasUploadedSong(id: string): Song | null {
-  return Storage.get<Song>(id)
+export async function getUploadedSong(id: string): Promise<Song | null> {
+  // Check localStorage first for backwards compatibility
+  const legacy = Storage.get<Song>(id)
+  if (legacy) return legacy
+  
+  // Check IndexedDB
+  const song = await idb.get<Song>(`SONG_DATA_${id}`)
+  return song ?? null
 }
 
 export function getPersistedSongSettings(file: string) {

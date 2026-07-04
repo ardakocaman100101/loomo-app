@@ -1,10 +1,10 @@
 @import 'tailwindcss';
 
 :root {
-  --loophesia-font-family:
+  --loomo-font-family:
     system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
     'Noto Color Emoji';
-  font-family: var(--loophesia-font-family);
+  font-family: var(--loomo-font-family);
 }
 
 @theme {
@@ -58,7 +58,7 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
-  --font-sans: var(--loophesia-font-family);
+  --font-sans: var(--loomo-font-family);
 }
 
 /*

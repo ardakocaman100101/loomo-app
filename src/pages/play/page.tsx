@@ -1,7 +1,7 @@
 import { SongScrubBar } from '@/features/controls'
 import { useSong } from '@/features/data'
 import { useSongMetadata } from '@/features/data/library'
-import midiState from '@/features/midi'
+import midiState, { initializeMidi } from '@/features/midi'
 import { requiresPermissionAtom, scanFolders } from '@/features/persist/persistence'
 import { usePlayer } from '@/features/player'
 import { getHandSettings, getSongSettings, SongVisualizer } from '@/features/SongVisualization'
@@ -121,6 +121,10 @@ export default function PlaySongPage() {
   }, [ppsScales.length])
   const playerState = usePlayerState()
   const synth = useLazyStableRef(() => getSynthStub('acoustic_grand_piano'))
+  const instrumentVolume = useAtomValue(player.instrumentVolume)
+  useEffect(() => {
+    synth.setMasterVolume(instrumentVolume)
+  }, [synth, instrumentVolume])
   let { data: song, error, isLoading, mutate } = useSong(id, source)
   let songMeta = useSongMetadata(id, source)
   const range = useAtomValue(player.getRange())
@@ -134,6 +138,11 @@ export default function PlaySongPage() {
   const [songConfig, setSongConfig] = useSongSettings(id)
   const isRecording = !!recording
   useWakeLock()
+
+  // Make sure MIDI is active and initialized on mount
+  useEffect(() => {
+    initializeMidi()
+  }, [])
 
   const hand =
     songConfig.left && songConfig.right
@@ -220,6 +229,12 @@ export default function PlaySongPage() {
       player.seek(player.currentSongTime - 16 / 1000)
     } else if (evt.code === 'Period') {
       player.seek(player.currentSongTime + 16 / 1000)
+    } else if (evt.code === 'ArrowLeft') {
+      evt.preventDefault()
+      player.restart()
+    } else if (evt.code === 'ArrowRight') {
+      evt.preventDefault()
+      player.seek(player.getDuration())
     }
   })
 
@@ -276,6 +291,7 @@ export default function PlaySongPage() {
 
   useEffect(() => {
     const handleMidiEvent = ({ type, note, velocity, cc, value }: MidiStateEvent) => {
+      console.log('PlayPage handleMidiEvent', type, note, velocity)
       if (type === 'down' && note !== undefined) {
         synth.playNote(note, velocity!)
       } else if (type === 'up' && note !== undefined) {
@@ -374,6 +390,7 @@ export default function PlaySongPage() {
               isPlaying={playerState.playing}
               onTogglePlaying={() => player.toggle()}
               onClickRestart={() => player.restart()}
+              onClickSkipToEnd={() => player.seek(player.getDuration())}
               onClickBack={() => {
                 player.stop()
                 navigate(`/studio?id=${encodeURIComponent(id)}&source=${source}`)

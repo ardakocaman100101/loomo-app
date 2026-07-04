@@ -48,8 +48,10 @@ export default function Table<T extends Row>({
   const gridTemplateColumns = `repeat(${columns.length}, 1fr)`
 
   return (
-    <>
-      <div className="grid" style={{ gridTemplateColumns }}>
+    <div className="flex flex-col grow min-h-[300px] bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl shadow-[0_8px_32px_0_rgba(160,120,255,0.05)] overflow-hidden">
+      
+      {/* Table Header Row */}
+      <div className="grid border-b border-white/10 bg-white/5" style={{ gridTemplateColumns }}>
         <TableHead
           columns={columns}
           sortCol={sortCol}
@@ -57,12 +59,15 @@ export default function Table<T extends Row>({
           rowHeight={rowHeight}
         />
       </div>
-      <div className="relative flex min-h-64 grow">
-        <div
-          className="absolute grid h-full w-full content-start overflow-y-scroll rounded-md bg-white shadow-md"
-          style={{ gridTemplateColumns }}
-        >
-          {sorted.length === 0 && <h2 className="p-5 text-2xl">No results</h2>}
+
+      {/* Scrollable Table Rows */}
+      <div className="relative flex-1 overflow-y-auto">
+        <div className="grid w-full content-start" style={{ gridTemplateColumns }}>
+          {sorted.length === 0 && (
+            <h2 className="p-8 text-xl font-light text-[#cbc3d5]/60 text-center w-full col-span-full">
+              No results
+            </h2>
+          )}
           {sorted.map((row: T, i) => {
             return (
               <div
@@ -74,11 +79,11 @@ export default function Table<T extends Row>({
                 key={`row-${getId(row)}`}
               >
                 {columns.map((col, j) => {
-                  let cellValue = !!col.format ? col.format(row[col.id]) : row[col.id]
-                  const paddingLeft = j === 0 ? 20 : 0
+                  let cellValue = !!col.format ? col.format(row[col.id], row) : row[col.id]
+                  const paddingLeft = j === 0 ? 24 : 12
                   return (
                     <span
-                      className="relative flex shrink-0 items-center px-3 text-sm group-even:bg-gray-100 group-hover:bg-violet-200"
+                      className="relative flex shrink-0 items-center px-4 text-sm font-light text-[#e7e0ec]/80 border-b border-white/5 group-hover:bg-[#a078ff]/10 group-hover:text-white transition-all duration-200"
                       key={`row-${i}-col-${j}`}
                       style={{ paddingLeft, height: rowHeight }}
                     >
@@ -91,6 +96,7 @@ export default function Table<T extends Row>({
           })}
         </div>
       </div>
-    </>
+
+    </div>
   )
 }

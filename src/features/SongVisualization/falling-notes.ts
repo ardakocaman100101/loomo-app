@@ -83,13 +83,14 @@ function deriveState(state: GivenState): State {
     ? (items.filter((i) => i.type === 'note') as SongNote[])
     : ([{ midiNote: 21 }, { midiNote: 108 }] as SongNote[])
 
-  let minNotes = state.zoomMode ?? 36
+  let minNotes = state.zoomMode ?? 0
   if (state.zoomMode === undefined && state.height > state.windowWidth) {
-    if (state.height > 800) minNotes = 88
-    else if (state.height > 600) minNotes = 72
-    else if (state.height > 500) minNotes = 60
-    else if (state.height > 400) minNotes = 40
-    else if (state.height > 300) minNotes = 32
+    // We allow the octaves to dictate the width, but keep a sensible minimum
+    // if the screen is very tall compared to width to avoid huge keys.
+    if (state.height > 800) minNotes = 48
+    else if (state.height > 600) minNotes = 36
+    else if (state.height > 500) minNotes = 24
+    else minNotes = 24
   }
 
   const { startNote: songStart, endNote: songEnd } = getSongRange({ notes }, minNotes)
@@ -100,7 +101,7 @@ function deriveState(state: GivenState): State {
   const pianoWidth = pianoMeasurements.pianoWidth
   const noteHitY = pianoTopY - 120
 
-  const averageLaneWidth = state.windowWidth / minNotes
+  const averageLaneWidth = state.windowWidth / Math.max(endNote - startNote, 1)
   const averageCircleRadius = (averageLaneWidth / 2) - 1
   // Perfect tolerance inside the circle, exactly matching the radius in terms of MS
   // Multiplied by 2.5 to make it more forgiving and easier to get green.
@@ -125,37 +126,46 @@ function getKeyboardRange(
   songEnd: number,
   instrumentRange: { start: number; end: number } | null,
 ) {
-  let start = 36;
-  let end = 96;
+  // Snap to the nearest C octaves (multiples of 12)
+  let start = Math.floor(songStart / 12) * 12
+  let end = Math.ceil(songEnd / 12) * 12
 
-  if (instrumentRange) {
-    start = instrumentRange.start;
-    end = instrumentRange.end;
+  // Ensure minimum of 1 octave (13 keys, e.g. C to C)
+  if (end - start < 12) {
+    end = start + 12
   }
 
-  let k = 0;
-  if (songStart < start || songEnd > end) {
-    const shiftDown = Math.ceil((start - songStart) / 12);
-    const shiftUp = Math.ceil((songEnd - end) / 12);
+  // Constrain to valid piano MIDI range (A0 = 21, C8 = 108)
+  start = Math.max(21, start)
+  end = Math.min(108, end)
+
+  let k = 0
+  if (instrumentRange) {
+    const instStart = instrumentRange.start
+    const instEnd = instrumentRange.end
     
-    if (shiftDown > 0 && shiftUp <= 0) {
-      k = -shiftDown;
-    } else if (shiftUp > 0 && shiftDown <= 0) {
-      k = shiftUp;
-    } else {
-      const songCenter = (songStart + songEnd) / 2;
-      const instrumentCenter = (start + end) / 2;
-      k = Math.round((songCenter - instrumentCenter) / 12);
+    if (songStart < instStart || songEnd > instEnd) {
+      const shiftDown = Math.ceil((instStart - songStart) / 12)
+      const shiftUp = Math.ceil((songEnd - instEnd) / 12)
+      
+      if (shiftDown > 0 && shiftUp <= 0) {
+        k = -shiftDown
+      } else if (shiftUp > 0 && shiftDown <= 0) {
+        k = shiftUp
+      } else {
+        const songCenter = (songStart + songEnd) / 2
+        const instrumentCenter = (instStart + instEnd) / 2
+        k = Math.round((songCenter - instrumentCenter) / 12)
+      }
     }
   }
 
-  const minK = Math.ceil((21 - start) / 12);
-  const maxK = Math.floor((108 - end) / 12);
-  k = Math.max(minK, Math.min(maxK, k));
+  // Shift incoming hardware MIDI notes by k octaves so the user can play the song
+  midiState.midiOctaveDiff = k
 
   return { 
-    startNote: start + k * 12, 
-    endNote: end + k * 12 
+    startNote: start, 
+    endNote: end 
   }
 }
 
@@ -186,9 +196,26 @@ export function renderFallingVis(givenState: GivenState): void {
     }
   }
 
+  // Pre-calculate active targets for feedback coloring
+  const activeTargets = new Set<SongNote>()
+  const now = state.time
+  const margin = state.player.goodRange / 1000
+  const seenPitches = new Set<number>()
+
   for (let i of items) {
     if (i.type === 'note') {
-      renderFallingNote(i, state)
+      if (!seenPitches.has(i.midiNote)) {
+        if (now <= i.time + i.duration + margin) {
+          activeTargets.add(i)
+          seenPitches.add(i.midiNote)
+        }
+      }
+    }
+  }
+
+  for (let i of items) {
+    if (i.type === 'note') {
+      renderFallingNote(i, state, activeTargets.has(i))
     }
   }
 
@@ -225,11 +252,15 @@ function renderHitLine(state: State) {
   ctx.restore()
 }
 
-function getNoteColor(state: State, note: SongNote): string {
+function getNoteColor(state: State, note: SongNote, isActiveTarget: boolean): string {
+  if (state.player.missedNotes.has(note)) {
+    return feedbackColors.red
+  }
+
   const isPressed = midiState.getPressedNotes().has(note.midiNote)
   const feedback = state.player.pressFeedback.get(note.midiNote)
   
-  if (isPressed && feedback) {
+  if (isPressed && feedback && isActiveTarget) {
     // Only apply feedback color if the note is currently near or on the baseline.
     const now = state.time;
     const margin = state.player.goodRange / 1000; // convert ms to seconds
@@ -286,7 +317,7 @@ function renderOctaveRuler(state: State) {
   ctx.restore()
 }
 
-export function renderFallingNote(note: SongNote, state: State): void {
+export function renderFallingNote(note: SongNote, state: State, isActiveTarget: boolean = false): void {
   if (!(note.midiNote in state.pianoMeasurements.lanes)) {
     return
   }
@@ -324,7 +355,7 @@ export function renderFallingNote(note: SongNote, state: State): void {
   const minLengthToDisplayCircle = Math.max(circleRadius * 2, 18)
   const length = Math.max(actualLength, minLengthToDisplayCircle)
 
-  const color = getNoteColor(state, note)
+  const color = getNoteColor(state, note, isActiveTarget)
 
   ctx.save()
 

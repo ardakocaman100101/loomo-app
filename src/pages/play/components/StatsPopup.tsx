@@ -9,7 +9,8 @@ export function StatsPopup({}) {
   const accuracy = useAtomValue(player.score.accuracy)
   const streak = useAtomValue(player.score.streak)
   const perfect = useAtomValue(player.score.perfect)
-  const good = useAtomValue(player.score.good)
+  const early = useAtomValue(player.score.early)
+  const late = useAtomValue(player.score.late)
   const missed = useAtomValue(player.score.missed)
   const error = useAtomValue(player.score.error)
 
@@ -26,27 +27,31 @@ export function StatsPopup({}) {
         </div>
       }
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 w-[360px]">
         <div className="flex items-center justify-center rounded-lg bg-slate-500/40 px-4 py-2">
           <span className="mr-2 text-sm font-bold text-white">STREAK</span>
           <span className="text-2xl font-bold text-white">{streak}</span>
         </div>
-        <div className="grid grid-cols-4 gap-3">
-          <div className="flex flex-col items-center rounded-lg bg-black/40 px-4 py-3">
-            <span className="text-sm font-bold text-green-400">PERFECT</span>
-            <span className="text-2xl font-bold text-green-400">{perfect}</span>
+        <div className="grid grid-cols-5 gap-1.5">
+          <div className="flex flex-col items-center rounded-lg bg-black/40 p-2 min-w-0">
+            <span className="text-[10px] font-bold text-green-400 truncate w-full text-center">PERFECT</span>
+            <span className="text-xl font-bold text-green-400 mt-1">{perfect}</span>
           </div>
-          <div className="flex flex-col items-center rounded-lg bg-black/40 px-4 py-3">
-            <span className="text-sm font-bold text-blue-400">GOOD</span>
-            <span className="text-2xl font-bold text-blue-400">{good}</span>
+          <div className="flex flex-col items-center rounded-lg bg-black/40 p-2 min-w-0">
+            <span className="text-[10px] font-bold text-yellow-400 truncate w-full text-center">EARLY</span>
+            <span className="text-xl font-bold text-yellow-400 mt-1">{early}</span>
           </div>
-          <div className="flex flex-col items-center rounded-lg bg-black/40 px-4 py-3">
-            <span className="text-sm font-bold text-red-400">MISSED</span>
-            <span className="text-2xl font-bold text-red-400">{missed}</span>
+          <div className="flex flex-col items-center rounded-lg bg-black/40 p-2 min-w-0">
+            <span className="text-[10px] font-bold text-blue-400 truncate w-full text-center">LATE</span>
+            <span className="text-xl font-bold text-blue-400 mt-1">{late}</span>
           </div>
-          <div className="flex flex-col items-center rounded-lg bg-black/40 px-4 py-3">
-            <span className="text-sm font-bold text-yellow-400">ERROR</span>
-            <span className="text-2xl font-bold text-yellow-400">{error}</span>
+          <div className="flex flex-col items-center rounded-lg bg-black/40 p-2 min-w-0">
+            <span className="text-[10px] font-bold text-gray-400 truncate w-full text-center">MISSED</span>
+            <span className="text-xl font-bold text-gray-400 mt-1">{missed}</span>
+          </div>
+          <div className="flex flex-col items-center rounded-lg bg-black/40 p-2 min-w-0">
+            <span className="text-[10px] font-bold text-red-500 truncate w-full text-center">MISTAKES</span>
+            <span className="text-xl font-bold text-red-500 mt-1">{error}</span>
           </div>
         </div>
       </div>

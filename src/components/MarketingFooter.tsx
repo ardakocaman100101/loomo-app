@@ -37,7 +37,7 @@ export function MarketingFooter() {
 
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <span className="text-gray-400 text-xs">
-            loophesia by Arda
+            loomo by Arda
           </span>
         </div>
       </div>

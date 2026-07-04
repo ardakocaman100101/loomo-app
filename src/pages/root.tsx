@@ -28,16 +28,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="twitter:card" content="summary_large_image" />
         <meta
           name="twitter:image"
-          content="https://loophesia.dev/images/mode_falling_notes_screenshot.png"
+          content="https://loomo.app/images/mode_falling_notes_screenshot.png"
         />
         <meta
           name="twitter:image:alt"
-          content="Loophesia demo displaying falling notes visualization"
+          content="loomo demo displaying falling notes visualization"
         />
 
         {/* Favicons */}
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
 
         {/* Global Site Tag (gtag.js) - Google Analytics */}
         <script defer src={`https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`} />

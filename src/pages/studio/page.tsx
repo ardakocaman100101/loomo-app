@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router";
 import { useSong } from "@/features/data";
 import { useSongMetadata } from "@/features/data/library";
@@ -33,8 +33,11 @@ import {
   SlidersHorizontal,
   Sparkles,
   Target,
+  SkipBack,
+  SkipForward,
 } from "lucide-react";
 import type { Song, SongNote, Track, Tracks, SongSource } from "@/types";
+import { Logo } from "@/icons";
 
 // Pitch helpers
 const ROW_HEIGHT = 28; // px
@@ -141,6 +144,10 @@ export default function Studio() {
   const MAX_ZOOM = 64; // maximum px per 16th note
   const KEY_WIDTH = 40;
   const KEY_TOP_HEIGHT = 64;
+  // Distance (px) from the bottom of the scroll container to the playhead line.
+  // Increase this value to move the baseline higher, which makes the note visually
+  // touch the line closer to the moment the audio fires.
+  const PLAYHEAD_BOTTOM = 80;
   const [zoomY, setZoomY] = useState<number>(32);
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey) {
@@ -153,6 +160,13 @@ export default function Studio() {
       });
     }
   };
+
+  // Sync piano horizontal scroll with grid horizontal scroll
+  const handleGridScroll = useCallback(() => {
+    if (pianoScrollRef.current && scrollContainerRef.current) {
+      pianoScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
+    }
+  }, []);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -170,23 +184,59 @@ export default function Studio() {
   const synthCacheRef = useRef<{ [trackId: number]: Synth }>({});
   const activeNotesMapRef = useRef<Map<string, { note: SongNote; synth: Synth }>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [hasScrolledInitial, setHasScrolledInitial] = useState(false);
+  const pianoScrollRef = useRef<HTMLDivElement>(null);
+  const scrollInitializedRef = useRef(false);
 
-  useEffect(() => {
+  // Set initial scroll position after layout is computed.
+  // useLayoutEffect runs synchronously after DOM paint, so clientHeight is always valid.
+  // We also guard: if a song is being loaded (id present), wait until notes are populated.
+  useLayoutEffect(() => {
     if (isLoading) return;
-    if (!hasScrolledInitial && scrollContainerRef.current && minMidi !== undefined) {
-      setTimeout(() => {
-        if (!scrollContainerRef.current) return;
-        let targetMidi = 60;
-        if (notes.length > 0) {
-          targetMidi = Math.min(...notes.map((n) => n.midiNote));
-        }
-        const offset = Math.max(0, (targetMidi - minMidi - 2) * KEY_WIDTH);
-        scrollContainerRef.current.scrollLeft = offset;
-      }, 50);
-      setHasScrolledInitial(true);
+    if (scrollInitializedRef.current) return;
+    const el = scrollContainerRef.current;
+    if (!el || el.clientHeight === 0) return;
+    // When loading an existing song, defer until notes are actually in state
+    if (id && notes.length === 0) return;
+
+    // Horizontal: scroll to the lowest note pitch
+    let targetMidi = 60;
+    if (notes.length > 0) {
+      targetMidi = Math.min(...notes.map((n) => n.midiNote));
     }
-  }, [isLoading, hasScrolledInitial, notes, minMidi]);
+    const hOffset = Math.max(0, (targetMidi - minMidi - 2) * KEY_WIDTH);
+    el.scrollLeft = hOffset;
+    if (pianoScrollRef.current) pianoScrollRef.current.scrollLeft = hOffset;
+
+    // Vertical: position so t=0 sits at the playhead (PLAYHEAD_BOTTOM px from bottom).
+    // With inverted Y, gridY(t=0) = gridH. We need:
+    //   scrollTop + (containerH - PLAYHEAD_BOTTOM) = gridH  =>  scrollTop = gridH - containerH + PLAYHEAD_BOTTOM
+    const containerH = el.clientHeight;
+    const maxNoteEnd = notes.length > 0 ? Math.max(...notes.map(n => n.time + n.duration)) : 0;
+    const computedTotalDur = Math.max(DEFAULT_DURATION, Math.ceil(maxNoteEnd + 4));
+    const gridH = Math.ceil(computedTotalDur * (bpm / 60) * 4) * zoomY;
+    el.scrollTop = Math.max(0, gridH - containerH + PLAYHEAD_BOTTOM);
+
+    scrollInitializedRef.current = true;
+  });
+
+  // On window resize: keep the scroll offset relative to the bottom constant
+  // so the baseline stays aligned.
+  useEffect(() => {
+    let lastH = 0;
+    const onResize = () => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      const newH = el.clientHeight;
+      const diff = newH - lastH;
+      if (diff !== 0 && lastH !== 0) {
+        el.scrollTop = Math.max(0, el.scrollTop - diff);
+      }
+      lastH = newH;
+    };
+    window.addEventListener('resize', onResize);
+    setTimeout(() => { if (scrollContainerRef.current) lastH = scrollContainerRef.current.clientHeight; }, 200);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Undo/Redo tracking helper
   const pushHistory = useCallback((newNotes: SongNote[], newTracks: Tracks) => {
@@ -210,6 +260,8 @@ export default function Studio() {
   // Load song into local state if editing an existing song
   useEffect(() => {
     if (loadedSong) {
+      // Reset scroll so it re-initializes with the real notes after this render
+      scrollInitializedRef.current = false;
       setSongName(songMeta?.title || "Edited Song");
       setNotes(loadedSong.notes || []);
       setTracks(loadedSong.tracks || {
@@ -335,6 +387,24 @@ export default function Studio() {
     lastTimePlayedRef.current = 0;
   }, [stopAllNotes]);
 
+  const seekTo = useCallback((t: number) => {
+    const cappedT = Math.max(0, Math.min(totalDuration, t));
+    setPlaybackTime(cappedT);
+    playbackTimeRef.current = cappedT;
+    lastTimePlayedRef.current = cappedT;
+    if (isPlaying) {
+      startTimeRef.current = performance.now() / 1000 - cappedT;
+    }
+    if (scrollContainerRef.current) {
+      const containerHeight = scrollContainerRef.current.clientHeight;
+      const playheadY = containerHeight - PLAYHEAD_BOTTOM;
+      const factor = (bpm / 60) * 4 * zoomY;
+      const gridH = Math.ceil(totalDuration * (bpm / 60) * 4) * zoomY;
+      const noteY = gridH - cappedT * factor;
+      scrollContainerRef.current.scrollTop = Math.max(0, noteY - playheadY);
+    }
+  }, [isPlaying, bpm, zoomY, totalDuration, PLAYHEAD_BOTTOM]);
+
   useEffect(() => {
     return () => {
       if (playbackIntervalRef.current) {
@@ -350,6 +420,18 @@ export default function Studio() {
     if (e.code === "Space") {
       e.preventDefault();
       togglePlayback();
+      return;
+    }
+
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      seekTo(0);
+      return;
+    }
+
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      seekTo(totalDuration);
       return;
     }
 
@@ -414,17 +496,36 @@ export default function Studio() {
   }, [activeTrack]);
 
   // Time & Pixel coordinates mapping
+  // Y is INVERTED: time=0 maps to the BOTTOM of the grid, larger time maps to the TOP.
+  // This gives "falling notes" behavior: future notes appear at top and fall toward the piano.
   const timeToY = useCallback((t: number) => {
-    // 1 beat = 4 subdivisions (16th notes)
-    const beats = t * (bpm / 60);
-    return beats * 4 * zoomY;
+    const factor = (bpm / 60) * 4 * zoomY;
+    const gridH = Math.ceil(totalDuration * (bpm / 60) * 4) * zoomY;
+    return gridH - t * factor;
+  }, [bpm, zoomY, totalDuration]);
+
+  // Convert a duration (delta time) to pixels — no offset, just the linear factor
+  const durationToHeight = useCallback((d: number) => {
+    return d * (bpm / 60) * 4 * zoomY;
   }, [bpm, zoomY]);
 
+  // Auto-scroll during playback: as time increases, scrollTop DECREASES,
+  // so the grid scrolls UP and notes appear to FALL DOWNWARD past the fixed playhead.
+  useEffect(() => {
+    if (!isPlaying || !scrollContainerRef.current) return;
+    const containerHeight = scrollContainerRef.current.clientHeight;
+    const playheadY = containerHeight - PLAYHEAD_BOTTOM; // playhead is PLAYHEAD_BOTTOM px from bottom
+    const factor = (bpm / 60) * 4 * zoomY;
+    const gridH = Math.ceil(totalDuration * (bpm / 60) * 4) * zoomY;
+    const noteY = gridH - playbackTime * factor; // inverted Y of current time
+    scrollContainerRef.current.scrollTop = Math.max(0, noteY - playheadY);
+  }, [playbackTime, isPlaying, bpm, zoomY, totalDuration]);
+
+  // Inverted yToTime for the falling-notes coordinate system
   const yToTime = useCallback((y: number) => {
-    const subdivisions = y / zoomY;
-    const beats = subdivisions / 4;
-    return beats * (60 / bpm);
-  }, [bpm, zoomY]);
+    const gridH = Math.ceil(totalDuration * (bpm / 60) * 4) * zoomY;
+    return (gridH - y) / ((bpm / 60) * 4 * zoomY);
+  }, [bpm, zoomY, totalDuration]);
 
   // Subdivision time helper
   const getSubdivisionTime = useCallback((subdivision: number) => {
@@ -526,16 +627,16 @@ export default function Studio() {
     const deltaX = e.clientX - startX;
     const deltaY = e.clientY - startY;
 
-    // Convert pixels to subdivisions
+    // Inverted Y: dragging DOWN = moving toward earlier time (negative deltaTime)
     const deltaSubdivisions = Math.round(deltaY / zoomY);
-    const deltaTime = deltaSubdivisions * (60 / bpm / 4);
+    const deltaTime = -deltaSubdivisions * (60 / bpm / 4);
 
     const updatedNotes = [...notes];
     const note = { ...updatedNotes[noteIndex] };
 
     if (isResize) {
-      // Resizing
-      const newDuration = Math.max(60 / bpm / 4, startDuration + deltaTime);
+      // Resize handle is at TOP of note (future end). Drag UP = longer, drag DOWN = shorter.
+      const newDuration = Math.max(60 / bpm / 4, startDuration - deltaTime);
       note.duration = newDuration;
     } else {
       // Moving
@@ -781,7 +882,7 @@ export default function Studio() {
       keys.push(m);
     }
     return keys;
-  }, []);
+  }, [minMidi, maxMidi]);
 
   const totalGridWidth = useMemo(() => pianoKeys.length * KEY_WIDTH, [pianoKeys.length]);
   const totalGridHeight = useMemo(() => {
@@ -807,7 +908,16 @@ export default function Studio() {
   const selectedNote = selectedNoteIndex !== null ? notes[selectedNoteIndex] : null;
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#131313] text-[#e5e2e1] select-none font-sans">
+    <div
+      style={{
+        height: '100vh',
+        width: '100vw',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+      className="bg-[#131313] text-[#e5e2e1] select-none font-sans"
+    >
       {/* Studio Header (Loomo look-alike) */}
       <header className="flex h-20 items-center justify-between border-b border-[#353534]/50 bg-[#131313] px-6 shadow-md z-30">
         <div className="flex items-center gap-4">
@@ -825,9 +935,7 @@ export default function Studio() {
           <div className="h-6 w-[1px] bg-[#353534]" />
 
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#a078ff] shadow-[0_0_20px_rgba(160,120,255,0.4)]">
-              <Piano className="h-5 w-5 text-white" />
-            </div>
+            <Logo height={32} width={50} className="w-[50px] h-8 shadow-[0_0_20px_rgba(160,120,255,0.4)]" />
             <input
               type="text"
               value={songName}
@@ -841,6 +949,13 @@ export default function Studio() {
         <div className="flex items-center gap-6 rounded-2xl glass-card px-6 py-2 border border-[#d0bcff]/10">
           <div className="flex items-center gap-2">
             <button
+              onClick={() => seekTo(0)}
+              title="Skip to Beginning"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-[#e5e2e1]/80 hover:text-white"
+            >
+              <SkipBack className="h-4 w-4" />
+            </button>
+            <button
               onClick={togglePlayback}
               className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
                 isPlaying ? "bg-[#d0bcff] text-[#131313]" : "bg-white/5 hover:bg-white/10"
@@ -853,6 +968,13 @@ export default function Studio() {
               className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all"
             >
               <Square className="h-4 w-4 fill-current" />
+            </button>
+            <button
+              onClick={() => seekTo(totalDuration)}
+              title="Skip to End"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-[#e5e2e1]/80 hover:text-white"
+            >
+              <SkipForward className="h-4 w-4" />
             </button>
           </div>
 
@@ -916,7 +1038,15 @@ export default function Studio() {
       </header>
 
       {/* Main Studio Work Area */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div
+        style={{
+          display: 'flex',
+          flex: 1,
+          overflow: 'hidden',
+          position: 'relative',
+          minHeight: 0,
+        }}
+      >
         
         {/* Left Track Manager (Loomo Theme) */}
         <AnimatePresence initial={false}>
@@ -1076,11 +1206,14 @@ export default function Studio() {
           <SlidersHorizontal className="h-2 w-2 rotate-90" />
         </button>
 
-        {/* Right Scrollable Piano Roll Section */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#1a1a1a]">
-          
-          {/* Timeline zoom controller bar */}
-          <div className="h-8 border-b border-[#353534]/30 bg-[#131313] flex items-center justify-between px-4 text-xs select-none">
+        {/* Right panel — position:relative so children can be absolutely placed */}
+        <div style={{ position: 'relative', flex: 1, overflow: 'hidden', background: '#1a1a1a' }}>
+
+          {/* Timeline bar — pinned to top */}
+          <div
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 32 }}
+            className="border-b border-[#353534]/30 bg-[#131313] flex items-center justify-between px-4 text-xs select-none"
+          >
             <span className="text-[#cbc3d7]/60 text-[10px] uppercase font-semibold">Timeline</span>
             <div className="flex items-center gap-3">
               <span className="text-[#cbc3d7]">Zoom:</span>
@@ -1100,67 +1233,44 @@ export default function Studio() {
             </div>
           </div>
 
-          {/* Main Grid viewport */}
-          <div className="flex-1 overflow-auto relative" onWheel={handleWheel} ref={scrollContainerRef}>
+          {/* Grid viewport — fills space between timeline and piano (+ optional note details) */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 32,
+              bottom: selectedNote ? KEY_TOP_HEIGHT + 80 : KEY_TOP_HEIGHT,
+              left: 0,
+              right: 0,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Playhead line — always 32px from the bottom of this viewport */}
             <div
-              className="relative"
-              style={{
-                width: `${totalGridWidth}px`,
-                height: `${KEY_TOP_HEIGHT + totalGridHeight}px`,
-              }}
-            >
-              {/* Sticky Piano Keys row */}
-              <div
-                className="sticky top-0 left-0 z-20 flex border-b border-[#353534] bg-[#1e1e1e]"
-                style={{
-                  width: `${totalGridWidth}px`,
-                  height: `${KEY_TOP_HEIGHT}px`,
-                }}
-              >
-                {pianoKeys.map((key) => {
-                  const isBlack = isBlackKey(key);
-                  return (
-                    <div
-                      key={key}
-                      onMouseDown={() => handleKeyMouseDown(key)}
-                      onMouseUp={() => handleKeyMouseUp(key)}
-                      onMouseLeave={() => handleKeyMouseUp(key)}
-                      className={`relative flex h-full items-center justify-center border-r border-[#353534]/30 px-2 cursor-pointer transition-colors active:bg-[#a078ff]/30 ${
-                        isBlack ? 'bg-black text-white/50 text-[9px]' : 'bg-white text-black text-[10px]'
-                      }`}
-                      style={{ minWidth: `${KEY_WIDTH}px`, width: `${KEY_WIDTH}px` }}
-                    >
-                      <span className="font-semibold">{getNoteName(key)}</span>
-                      <div className={`absolute bottom-2 h-1.5 w-1.5 rounded-full ${isBlack ? 'bg-white/20' : 'bg-black/20'}`} />
-                    </div>
-                  );
-                })}
-              </div>
+              className="pointer-events-none absolute left-0 right-0 h-[2px] bg-[#d0bcff] shadow-[0_0_8px_#d0bcff] z-50"
+              style={{ bottom: PLAYHEAD_BOTTOM }}
+            />
 
-              {/* Sequencer Grid container */}
+            {/* Scrollable note grid */}
+            <div
+              style={{ width: '100%', height: '100%', overflow: 'auto' }}
+              ref={scrollContainerRef}
+              onWheel={handleWheel}
+              onScroll={handleGridScroll}
+            >
+              {/* Grid canvas */}
               <div
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const clickX = e.clientX - rect.left;
                   const clickY = e.clientY - rect.top;
-
-                  const timeSubdivision = Math.floor(clickY / zoomY);
-                  const noteMidi = Math.min(
-                    maxMidi,
-                    Math.max(minMidi, minMidi + Math.floor(clickX / KEY_WIDTH)),
-                  );
-
+                  const gridH = Math.ceil(totalDuration * (bpm / 60) * 4) * zoomY;
+                  const timeSubdivision = Math.floor((gridH - clickY) / zoomY);
+                  const noteMidi = Math.min(maxMidi, Math.max(minMidi, minMidi + Math.floor(clickX / KEY_WIDTH)));
                   addNoteAt(noteMidi, timeSubdivision);
                 }}
                 className="relative cursor-crosshair select-none bg-[#131313]"
-                style={{
-                  ...gridBackgroundStyle,
-                  width: `${totalGridWidth}px`,
-                  height: `${totalGridHeight}px`,
-                  marginTop: `${KEY_TOP_HEIGHT}px`,
-                }}
+                style={{ ...gridBackgroundStyle, width: `${totalGridWidth}px`, height: `${totalGridHeight}px` }}
               >
-                {/* Note capsules */}
                 {notes.map((note, index) => {
                   const isSelected = selectedNoteIndex === index;
                   const isNoteActive = note.track === activeTrack;
@@ -1168,16 +1278,13 @@ export default function Studio() {
                   const hasSolo = soloTracks.size > 0;
                   const isSolo = soloTracks.has(note.track);
                   const isVisible = hasSolo ? isSolo : !isMuted;
-                  
                   if (!isVisible) return null;
 
                   const left = (note.midiNote - minMidi) * KEY_WIDTH;
-                  const top = timeToY(note.time);
-                  const height = Math.max(20, timeToY(note.duration));
-
-                  // Velocity glowing intensity
+                  const top = timeToY(note.time + note.duration);
+                  const height = Math.max(20, durationToHeight(note.duration));
                   const velocityFactor = (note.velocity || 80) / 127;
-                  
+
                   return (
                     <div
                       key={index}
@@ -1185,8 +1292,8 @@ export default function Studio() {
                       onClick={(e) => handleNoteClick(e, index)}
                       onDoubleClick={(e) => handleNoteDoubleClick(e, index)}
                       className={`absolute rounded-xl border cursor-move select-none flex flex-col justify-between px-1 transition-shadow ${
-                        isSelected 
-                          ? 'border-white bg-[#d0bcff] text-[#131313] shadow-[0_0_15px_rgba(208,188,255,0.9)] z-10' 
+                        isSelected
+                          ? 'border-white bg-[#d0bcff] text-[#131313] shadow-[0_0_15px_rgba(208,188,255,0.9)] z-10'
                           : isNoteActive
                             ? 'border-[#d0bcff]/40 bg-[#a078ff]/80 text-white'
                             : 'border-white/10 bg-white/20 text-white/70'
@@ -1199,54 +1306,38 @@ export default function Studio() {
                         opacity: isSelected ? 1 : 0.4 + velocityFactor * 0.6,
                       }}
                     >
-                      <span className="text-[9px] font-bold truncate leading-none">
-                        {getNoteName(note.midiNote)}
-                      </span>
-
-                      {/* Resize Bottom Handle */}
+                      <span className="text-[9px] font-bold truncate leading-none">{getNoteName(note.midiNote)}</span>
                       <div
                         onMouseDown={(e) => handleNoteMouseDown(e, index, true)}
-                        className="absolute bottom-0 left-0 h-2 w-full cursor-ns-resize rounded-b-xl hover:bg-white/30"
+                        className="absolute top-0 left-0 h-2 w-full cursor-ns-resize rounded-t-xl hover:bg-white/30"
                       />
                     </div>
                   );
                 })}
-
-                {/* Timeline Playhead line */}
-                <div
-                  className="absolute left-0 right-0 h-[2px] bg-[#d0bcff] pointer-events-none shadow-[0_0_8px_#d0bcff] z-10"
-                  style={{
-                    top: `${timeToY(playbackTime)}px`,
-                  }}
-                />
               </div>
             </div>
           </div>
 
-          {/* Bottom Selected Note Details panel */}
+          {/* Note details panel — sits just above piano when a note is selected */}
           {selectedNote && (
-            <div className="h-20 bg-[#171717] border-t border-[#353534]/50 px-6 py-3 flex items-center justify-between z-20">
+            <div
+              style={{ position: 'absolute', bottom: KEY_TOP_HEIGHT, left: 0, right: 0, height: 80 }}
+              className="bg-[#171717] border-t border-[#353534]/50 px-6 flex items-center justify-between z-20"
+            >
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[#cbc3d7]">Pitch:</span>
                   <span className="text-sm font-bold text-[#d0bcff]">{getNoteName(selectedNote.midiNote)}</span>
                 </div>
-
                 <div className="h-6 w-[1px] bg-[#353534]" />
-
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-[#cbc3d7]">Velocity:</span>
                   <input
-                    type="range"
-                    min={1}
-                    max={127}
+                    type="range" min={1} max={127}
                     value={selectedNote.velocity || 80}
                     onChange={(e) => {
                       const updated = [...notes];
-                      updated[selectedNoteIndex!] = {
-                        ...selectedNote,
-                        velocity: Number(e.target.value),
-                      };
+                      updated[selectedNoteIndex!] = { ...selectedNote, velocity: Number(e.target.value) };
                       setNotes(updated);
                       pushHistory(updated, tracks);
                     }}
@@ -1254,15 +1345,12 @@ export default function Studio() {
                   />
                   <span className="text-sm font-mono text-[#d0bcff] w-6">{selectedNote.velocity || 80}</span>
                 </div>
-
                 <div className="h-6 w-[1px] bg-[#353534]" />
-
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[#cbc3d7]">Duration:</span>
                   <span className="text-sm font-mono text-[#d0bcff]">{selectedNote.duration.toFixed(2)}s</span>
                 </div>
               </div>
-
               <button
                 onClick={() => deleteNote(selectedNoteIndex!)}
                 className="flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl px-4 py-2 border border-red-500/20 text-xs font-semibold active:scale-95 transition-all"
@@ -1272,6 +1360,34 @@ export default function Studio() {
               </button>
             </div>
           )}
+
+          {/* Piano keys — always pinned to the very bottom */}
+          <div
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: KEY_TOP_HEIGHT }}
+            className="overflow-hidden border-t border-[#353534] bg-[#1e1e1e]"
+            ref={pianoScrollRef}
+          >
+            <div className="flex" style={{ width: `${totalGridWidth}px`, height: '100%' }}>
+              {pianoKeys.map((key) => {
+                const isBlack = isBlackKey(key);
+                return (
+                  <div
+                    key={key}
+                    onMouseDown={() => handleKeyMouseDown(key)}
+                    onMouseUp={() => handleKeyMouseUp(key)}
+                    onMouseLeave={() => handleKeyMouseUp(key)}
+                    className={`relative flex h-full items-center justify-center border-r border-[#353534]/30 px-2 cursor-pointer transition-colors active:bg-[#a078ff]/30 ${
+                      isBlack ? 'bg-[#111] text-white/40 text-[9px]' : 'bg-white text-black text-[10px]'
+                    }`}
+                    style={{ minWidth: `${KEY_WIDTH}px`, width: `${KEY_WIDTH}px` }}
+                  >
+                    <span className="font-semibold">{getNoteName(key)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
