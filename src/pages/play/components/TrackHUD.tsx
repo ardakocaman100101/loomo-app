@@ -21,7 +21,7 @@ export default function TrackHUD({ song, config, onToggleMute, onTogglePractice 
 
     return (
         <div className="flex flex-col gap-2 rounded-[20px] bg-black/45 p-3 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),0_8px_32px_0_rgba(0,0,0,0.37)] border border-white/5 max-h-[50vh] overflow-y-auto w-[232px] pointer-events-auto">
-            <div className="mb-3 text-[12px] font-black uppercase tracking-[0.18em] text-[#b08eff] text-center select-none">
+            <div className="mb-3 text-[12px] font-black uppercase tracking-[0.18em] text-[#6c79f0] text-center select-none">
                 TRACKS
             </div>
             {tracks.map(([idStr, track]) => {
@@ -47,7 +47,7 @@ export default function TrackHUD({ song, config, onToggleMute, onTogglePractice 
                                     onClick={() => onTogglePractice(id)}
                                     className={clsx(
                                         "p-1 rounded transition select-none bg-transparent border-0",
-                                        settings?.practice ? "text-[#b08eff]" : "text-white/35 hover:text-white"
+                                        settings?.practice ? "text-[#6c79f0]" : "text-white/35 hover:text-white"
                                     )}
                                     title="Toggle note appearance"
                                 >

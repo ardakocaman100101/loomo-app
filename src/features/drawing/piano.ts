@@ -15,7 +15,7 @@ const feedbackColors: Record<string, string> = {
   yellow: '#f1c40f',
   grey: '#95a5a6',
   red: '#e74c3c',
-  purple: '#8147EB',
+  purple: '#b08eff',
 }
 
 function resolveFeedbackColor(color: string): string {

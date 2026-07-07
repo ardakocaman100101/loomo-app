@@ -3,19 +3,9 @@ import { VolumeSliderButton } from '@/features/controls'
 import { Logo, Midi } from '@/icons'
 import { isMobile } from '@/utils'
 import clsx from 'clsx'
-import {
-  ArrowLeft,
-  BarChart2,
-  LucideProps,
-  Settings,
-  SkipBack,
-  SkipForward,
-  Repeat,
-  Timer,
-} from 'lucide-react'
+import { ArrowLeft, BarChart2 } from 'lucide-react'
 import { MouseEvent, PropsWithChildren } from 'react'
 import { Link } from 'react-router'
-import StatusIcon from './StatusIcon'
 
 type ButtonProps = PropsWithChildren<{
   tooltip: string
@@ -36,7 +26,7 @@ export function ButtonWithTooltip({
       <button
         className={clsx(
           'group flex items-center justify-center rounded-md p-2 transition hover:bg-white/10 active:bg-white/20',
-          isActive ? 'text-purple-primary' : 'text-white',
+          isActive ? 'text-purple-primary' : 'text-white/70 hover:text-white',
           className,
         )}
         onClick={onClick}
@@ -48,90 +38,50 @@ export function ButtonWithTooltip({
 }
 
 type TopBarProps = {
-  isLoading: boolean
-  isPlaying: boolean
   title?: string
-  onTogglePlaying: () => void
   onClickBack: () => void
-  onClickRestart: () => void
-  onClickSkipToEnd: () => void
-  isLooping: boolean
-  onClickToggleLoop: () => void
   onClickMidi: (e: MouseEvent<any>) => void
   onClickStats: (e: MouseEvent<any>) => void
   statsVisible: boolean
-  isWaiting: boolean
-  onToggleWaiting: () => void
 }
 
 export default function TopBar({
-  isPlaying,
-  isLoading,
-  onTogglePlaying,
   onClickBack,
-  onClickRestart,
-  onClickSkipToEnd,
-  isLooping,
-  onClickToggleLoop,
-  title,
   onClickMidi,
   onClickStats,
   statsVisible,
-  isWaiting,
-  onToggleWaiting,
 }: TopBarProps) {
   return (
-    <div className="align-center relative z-10 flex h-[50px] min-h-[50px] w-screen justify-center gap-8 bg-[#292929] px-1">
-      <div className="absolute! top-1/2 left-3 -translate-y-1/2 flex items-center gap-3">
-        <ButtonWithTooltip tooltip="Back">
-          <ArrowLeft size={24} onClick={onClickBack} />
+    <div className="fixed top-0 left-0 w-full h-[78px] z-40 bg-[#131313]/20 backdrop-blur-3xl border-b border-white/5 flex items-center select-none shadow-[0_8px_32px_rgba(0,0,0,0.37)] px-6">
+      {/* Left side: Back button */}
+      <div className="flex items-center">
+        <ButtonWithTooltip tooltip="Back" onClick={onClickBack}>
+          <ArrowLeft size={32} className="cursor-pointer" />
         </ButtonWithTooltip>
-        
-        <Link to="/" onClick={onClickBack} className="flex items-center gap-2 group select-none">
-          <Logo height={28} width={44} className="w-[44px] h-7 shadow-[0_0_15px_rgba(160,120,255,0.3)] group-hover:scale-105 transition-all cursor-pointer" />
-          <span className="text-lg font-bold tracking-tight text-white group-hover:text-[#d0bcff] transition-all cursor-pointer">loomo</span>
+      </div>
+
+      {/* Center: Absolute centered Loomo Identity */}
+      <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2">
+        <Link to="/" onClick={onClickBack} className="flex items-center gap-3 group">
+          <Logo height={42} width={77} className="w-[77px] h-10.5 shadow-[0_0_15px_rgba(160,120,255,0.3)] group-hover:scale-105 transition-all cursor-pointer" />
+          <span className="text-3xl sm:text-4xl font-black tracking-tighter text-[#e5e2e1] group-hover:text-[#d0bcff] transition-all cursor-pointer">loomo</span>
         </Link>
       </div>
-      <div
-        className={clsx(
-          'flex h-full items-center gap-8',
-          'sm:absolute sm:left-1/2 sm:-translate-x-3/4',
-        )}
-      >
-        <ButtonWithTooltip tooltip="Restart/Beginning">
-          <SkipBack size={24} onClick={onClickRestart} />
+
+      {/* Right side: MIDI Device, Volume, Stats Toggles */}
+      <div className="ml-auto flex items-center gap-6">
+        <ButtonWithTooltip tooltip="Choose a MIDI device" onClick={onClickMidi}>
+          <Midi size={32} />
         </ButtonWithTooltip>
-        <StatusIcon isPlaying={isPlaying} isLoading={isLoading} onTogglePlaying={onTogglePlaying} />
-        <ButtonWithTooltip tooltip="Skip to End">
-          <SkipForward size={24} onClick={onClickSkipToEnd} />
-        </ButtonWithTooltip>
-        <ButtonWithTooltip tooltip="Toggle Loop" isActive={isLooping} onClick={onClickToggleLoop}>
-          <Repeat size={24} />
-        </ButtonWithTooltip>
-        <ButtonWithTooltip tooltip="Wait Mode" isActive={isWaiting} onClick={onToggleWaiting}>
-          <div className="relative">
-            <Midi size={20} />
-            {isWaiting && (
-              <div className="bg-purple-primary absolute -right-1 -bottom-1 h-2 w-2 rounded-full" />
-            )}
-          </div>
-        </ButtonWithTooltip>
-      </div>
-      <div className="hidden h-full items-center text-white sm:ml-auto sm:flex">{title}</div>
-      <div className="mr-[20px] flex h-full items-center gap-8">
-        <ButtonWithTooltip tooltip="Choose a MIDI device">
-          <Midi size={24} onClick={onClickMidi} />
-        </ButtonWithTooltip>
+        
         {!isMobile() && <VolumeSliderButton />}
-        {
-          <ButtonWithTooltip tooltip={statsVisible ? 'Hide Stats' : 'Show Stats'}>
-            <BarChart2
-              onClick={onClickStats}
-              size={24}
-              className={statsVisible ? 'text-white' : 'text-gray-400'}
-            />
-          </ButtonWithTooltip>
-        }
+        
+        <ButtonWithTooltip tooltip={statsVisible ? 'Hide Stats' : 'Show Stats'} onClick={onClickStats}>
+          <BarChart2
+            size={32}
+            className={statsVisible ? 'text-white' : 'text-white/40 hover:text-white'}
+          />
+        </ButtonWithTooltip>
       </div>
     </div>
   )

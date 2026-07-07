@@ -67,14 +67,14 @@ const feedbackColors: Record<string, string> = {
   yellow: '#f1c40f',
   grey: '#95a5a6',
   red: '#e74c3c',
-  blue: '#3498db',
+  purple: '#b08eff',
 }
 
 function getActiveNotes(state: State): Map<number, string> {
   const activeNotes = new Map<number, string>(state.player.pressFeedback)
   for (let midiNote of midiState.getPressedNotes().keys()) {
     if (!activeNotes.has(midiNote)) {
-      activeNotes.set(midiNote, 'blue')
+      activeNotes.set(midiNote, 'purple')
     }
   }
 
@@ -123,7 +123,7 @@ function deriveState(state: GivenState): State {
   const instrumentRange = midiState.detectedRange
   const { startNote, endNote } = getKeyboardRange(songStart, songEnd, instrumentRange)
   const pianoMeasurements = getPianoRollMeasurements(state.windowWidth, { startNote, endNote })
-  const pianoTopY = Math.max(0, state.height - pianoMeasurements.whiteHeight - 5)
+  const pianoTopY = Math.max(0, state.height - pianoMeasurements.whiteHeight - 65)
   const pianoWidth = pianoMeasurements.pianoWidth
   const noteHitY = pianoTopY - 120
 
@@ -156,11 +156,11 @@ export function getKeyboardRange(
   if (instrumentRange) {
     const instStart = instrumentRange.start
     const instEnd = instrumentRange.end
-    
+
     if (songStart < instStart || songEnd > instEnd) {
       const shiftDown = Math.ceil((instStart - songStart) / 12)
       const shiftUp = Math.ceil((songEnd - instEnd) / 12)
-      
+
       if (shiftDown > 0 && shiftUp <= 0) {
         k = -shiftDown
       } else if (shiftUp > 0 && shiftDown <= 0) {
@@ -179,7 +179,7 @@ export function getKeyboardRange(
   // Determine bounds by taking the union of the song's range and the shifted instrument's range
   let displayStart = songStart
   let displayEnd = songEnd
-  
+
   if (instrumentRange) {
     displayStart = Math.min(songStart, instrumentRange.start + k * 12)
     displayEnd = Math.max(songEnd, instrumentRange.end + k * 12)
@@ -198,9 +198,9 @@ export function getKeyboardRange(
   start = Math.max(21, start)
   end = Math.min(108, end)
 
-  return { 
-    startNote: start, 
-    endNote: end 
+  return {
+    startNote: start,
+    endNote: end
   }
 }
 
@@ -236,12 +236,12 @@ export function renderFallingVis(givenState: GivenState): void {
   const cx = state.windowWidth / 2
   const cy = state.height / 2
   const radius = Math.max(state.windowWidth, state.height)
-  
+
   const bgGrad = state.ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
   bgGrad.addColorStop(0, '#242424') // Lighter charcoal center
   bgGrad.addColorStop(0.7, '#0a0a0a') // Deep black mid
   bgGrad.addColorStop(1, '#000000') // Pure black edges
-  
+
   state.ctx.fillStyle = bgGrad
   state.ctx.fillRect(0, 0, state.windowWidth, state.height)
 
@@ -306,15 +306,23 @@ export function renderFallingVis(givenState: GivenState): void {
 function renderHitLine(state: State) {
   const { ctx, noteHitY, windowWidth } = state
   ctx.save()
-  
+
+  // Linear gradient that only fades out at the outer 5% of the screen
+  const grad = ctx.createLinearGradient(0, 0, windowWidth, 0)
+  grad.addColorStop(0, 'rgba(255, 220, 180, 0)')
+  grad.addColorStop(0.05, 'rgba(255, 220, 180, 0.9)')
+  grad.addColorStop(0.95, 'rgba(255, 220, 180, 0.9)')
+  grad.addColorStop(1, 'rgba(255, 220, 180, 0)')
+
+  // 1. Draw base semi-transparent white-orange dashed playhead (4.8px thickness)
   ctx.beginPath()
-  ctx.setLineDash([])
-  ctx.strokeStyle = 'rgba(129, 71, 235, 1)'
-  ctx.lineWidth = 6
+  ctx.setLineDash([12, 4])
+  ctx.strokeStyle = grad
+  ctx.lineWidth = 4.8
   ctx.moveTo(0, noteHitY)
   ctx.lineTo(windowWidth, noteHitY)
   ctx.stroke()
-  
+
   ctx.restore()
 }
 
@@ -325,7 +333,7 @@ function getNoteColor(state: State, note: SongNote, isActiveTarget: boolean): st
 
   const isPressed = midiState.getPressedNotes().has(note.midiNote)
   const feedback = state.player.pressFeedback.get(note.midiNote)
-  
+
   if (isPressed && feedback && isActiveTarget) {
     // Only apply feedback color if the note is currently near or on the baseline.
     const now = state.time;
@@ -369,7 +377,7 @@ function renderRange(state: State) {
 
   ctx.fillStyle = colors.rangeSelectionFill
   ctx.globalAlpha = 0.5
-  
+
   ctx.beginPath()
   ctx.moveTo(bottomLeft.x, bottomLeft.y)
   ctx.lineTo(bottomRight.x, bottomRight.y)
@@ -377,14 +385,14 @@ function renderRange(state: State) {
   ctx.lineTo(topLeft.x, topLeft.y)
   ctx.closePath()
   ctx.fill()
-  
+
   ctx.restore()
 }
 
 function renderLanes(state: State) {
   const { ctx } = state
   ctx.save()
-  
+
   const segments = 16
   const yStart = -state.height * 2.5
   const yEnd = state.pianoTopY
@@ -394,7 +402,7 @@ function renderLanes(state: State) {
     const midiNum = +midiNote
     if (isBlack(midiNum)) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.03)'
-      
+
       ctx.beginPath()
       // Left boundary of the lane going down
       const pStart = projectPoint(lane.left, yStart, state)
@@ -404,14 +412,14 @@ function renderLanes(state: State) {
         const p = projectPoint(lane.left, y, state)
         ctx.lineTo(p.x, p.y)
       }
-      
+
       // Right boundary of the lane going up
       for (let j = segments; j >= 0; j--) {
         const y = yStart + j * yStep
         const p = projectPoint(lane.left + lane.width, y, state)
         ctx.lineTo(p.x, p.y)
       }
-      
+
       ctx.closePath()
       ctx.fill()
     }
@@ -439,16 +447,16 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   } else {
     const leftBlack = state.pianoMeasurements.lanes[note.midiNote - 1]
     const rightBlack = state.pianoMeasurements.lanes[note.midiNote + 1]
-    
+
     if (leftBlack && isBlack(note.midiNote - 1)) {
       posX = leftBlack.left + leftBlack.width
     }
-    
+
     let rightEdge = lane.left + lane.width
     if (rightBlack && isBlack(note.midiNote + 1)) {
       rightEdge = rightBlack.left
     }
-    
+
     noteWidth = rightEdge - posX
   }
 
@@ -463,54 +471,93 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
 
   const color = getNoteColor(state, note, isActiveTarget)
 
-  ctx.save()
-
-  const tailTopY = posY - length
-  const circleCenterX = posX + width / 2
-  const circleCenterY = posY - circleRadius
-  
-  if (tailTopY < posY - circleRadius) {
-    const rectLeft = circleCenterX - circleRadius
-    const rectRight = circleCenterX + circleRadius
-    const rectTop = tailTopY
-    const rectBottom = circleCenterY
-
-    // Project 4 corners of the note tail trapezoid
-    const bottomLeft = projectPoint(rectLeft, rectBottom, state)
-    const bottomRight = projectPoint(rectRight, rectBottom, state)
-    const topRight = projectPoint(rectRight, rectTop, state)
-    const topLeft = projectPoint(rectLeft, rectTop, state)
-
-    const grad = ctx.createLinearGradient(circleCenterX, bottomLeft.y, circleCenterX, topLeft.y)
-    grad.addColorStop(0, color)
-    grad.addColorStop(1, color)
-    ctx.fillStyle = grad
-    ctx.strokeStyle = 'transparent'
-    ctx.globalAlpha = 0.8
-
-    ctx.beginPath()
-    ctx.moveTo(bottomLeft.x, bottomLeft.y)
-    ctx.lineTo(bottomRight.x, bottomRight.y)
-    ctx.lineTo(topRight.x, topRight.y)
-    ctx.lineTo(topLeft.x, topLeft.y)
-    ctx.closePath()
-    ctx.fill()
-
-    ctx.globalAlpha = 1.0
+  const getRgbaColor = (hexOrName: string, alpha: number): string => {
+    if (hexOrName.startsWith('#')) {
+      const hex = hexOrName.replace('#', '')
+      const r = parseInt(hex.substring(0, 2), 16)
+      const g = parseInt(hex.substring(2, 4), 16)
+      const b = parseInt(hex.substring(4, 6), 16)
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    }
+    if (hexOrName.startsWith('rgba')) {
+      return hexOrName.replace(/[\d\.]+\)$/, `${alpha})`)
+    }
+    if (hexOrName.startsWith('rgb')) {
+      return hexOrName.replace('rgb', 'rgba').replace(')', `, ${alpha})`)
+    }
+    const colors: Record<string, string> = {
+      purple: '176, 142, 255',
+      orange: '243, 156, 18',
+      green: '46, 204, 113',
+      blue: '52, 152, 219',
+      red: '231, 76, 60',
+      yellow: '241, 196, 15',
+      grey: '149, 165, 166',
+    }
+    const rgb = colors[hexOrName.toLowerCase()]
+    if (rgb) {
+      return `rgba(${rgb}, ${alpha})`
+    }
+    return hexOrName
   }
 
-  // Draw 3D projected note head
-  const center = projectPoint(circleCenterX, circleCenterY, state)
-  const radiusScaled = circleRadius * center.scale
+  ctx.save()
 
-  ctx.fillStyle = color
+  const circleCenterX = posX + width / 2
+  const circleCenterY = posY - circleRadius
+
+  const isPerfectCircle = actualLength <= minLengthToDisplayCircle
+  const tailTopY = isPerfectCircle ? (circleCenterY - circleRadius) : (posY - length)
+  const r = isPerfectCircle ? circleRadius : (circleRadius * 0.4)
+
+  const localPoints: { x: number; y: number }[] = []
+
+  // 1. Bottom half-circle (going from right angle 0 to left angle PI)
+  const numCirclePoints = 16
+  for (let j = 0; j <= numCirclePoints; j++) {
+    const angle = (j / numCirclePoints) * Math.PI
+    const x = circleCenterX + circleRadius * Math.cos(angle)
+    const y = circleCenterY + circleRadius * Math.sin(angle)
+    localPoints.push({ x, y })
+  }
+
+  // 2. Left-top rounded corner (from angle PI to 1.5 * PI)
+  const numCornerPoints = 6
+  for (let j = 0; j <= numCornerPoints; j++) {
+    const angle = Math.PI + (j / numCornerPoints) * (Math.PI / 2)
+    const x = (circleCenterX - circleRadius + r) + r * Math.cos(angle)
+    const y = (tailTopY + r) + r * Math.sin(angle)
+    localPoints.push({ x, y })
+  }
+
+  // 3. Right-top rounded corner (from angle 1.5 * PI to 2 * PI)
+  for (let j = 0; j <= numCornerPoints; j++) {
+    const angle = 1.5 * Math.PI + (j / numCornerPoints) * (Math.PI / 2)
+    const x = (circleCenterX + circleRadius - r) + r * Math.cos(angle)
+    const y = (tailTopY + r) + r * Math.sin(angle)
+    localPoints.push({ x, y })
+  }
+
+  const projectedPoints = localPoints.map(pt => projectPoint(pt.x, pt.y, state))
+
   ctx.beginPath()
-  ctx.arc(center.x, center.y, radiusScaled, 0, 2 * Math.PI)
+  ctx.moveTo(projectedPoints[0].x, projectedPoints[0].y)
+  for (let j = 1; j < projectedPoints.length; j++) {
+    ctx.lineTo(projectedPoints[j].x, projectedPoints[j].y)
+  }
+  ctx.closePath()
+
+  const bottomPt = projectPoint(circleCenterX, posY, state)
+  const topPt = projectPoint(circleCenterX, tailTopY, state)
+  const grad = ctx.createLinearGradient(circleCenterX, bottomPt.y, circleCenterX, topPt.y)
+  grad.addColorStop(0, getRgbaColor(color, 1.0))
+  grad.addColorStop(1, getRgbaColor(color, 0.8))
+
+  ctx.fillStyle = grad
   ctx.fill()
 
-  ctx.lineWidth = Math.max(1, 2 * center.scale)
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)'
-  ctx.stroke()
+  const center = projectPoint(circleCenterX, circleCenterY, state)
+  const radiusScaled = circleRadius * center.scale
 
   if (noteLabels !== 'none') {
     ctx.fillStyle = 'white'
@@ -528,8 +575,30 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
       maxWidth,
     )
     fontPx = Math.min(fontPx, maxWidth * 0.8)
-    ctx.font = `bold ${fontPx}px ${TEXT_FONT}`
-    ctx.fillText(noteText, center.x, center.y + fontPx * 0.05)
+
+    if (noteText.includes('#')) {
+      const letter = noteText.replace('#', '')
+      const letterSize = fontPx * 1.1
+      const sharpSize = fontPx * 0.7
+
+      ctx.font = `bold ${letterSize}px ${TEXT_FONT}`
+      const letterW = ctx.measureText(letter).width
+
+      ctx.font = `bold ${sharpSize}px ${TEXT_FONT}`
+      const sharpW = ctx.measureText('#').width
+
+      const totalW = letterW + sharpW
+      const startX = center.x - totalW / 2
+
+      ctx.font = `bold ${letterSize}px ${TEXT_FONT}`
+      ctx.fillText(letter, startX + letterW / 2, center.y + letterSize * 0.05)
+
+      ctx.font = `bold ${sharpSize}px ${TEXT_FONT}`
+      ctx.fillText('#', startX + letterW + sharpW / 2, center.y - letterSize * 0.12)
+    } else {
+      ctx.font = `bold ${fontPx}px ${TEXT_FONT}`
+      ctx.fillText(noteText, center.x, center.y + fontPx * 0.05)
+    }
   }
   ctx.restore()
 }

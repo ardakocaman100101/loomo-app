@@ -11,16 +11,32 @@ import {
   useLazyStableRef,
   useOnUnmount,
   usePlayerState,
+  useRAFLoop,
   useSongSettings,
   useWakeLock,
 } from '@/hooks'
 import { MidiStateEvent, SongSource } from '@/types'
+import { formatTime } from '@/utils'
 import clsx from 'clsx'
 import { useAtomValue } from 'jotai'
-import { AlertCircle, ArrowLeft, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react'
-import React, { useEffect, useMemo, useState } from 'react'
+import {
+  AlertCircle,
+  ArrowLeft,
+  RefreshCw,
+  ZoomIn,
+  ZoomOut,
+  SkipBack,
+  SkipForward,
+  Repeat,
+  Target,
+  Play,
+  Pause,
+  Loader2,
+} from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { TopBar, TrackHUD } from './components'
+import { ButtonWithTooltip } from './components/TopBar'
 import { MidiModal } from './components/MidiModal'
 import { StatsPopup } from './components/StatsPopup'
 
@@ -111,6 +127,15 @@ export default function PlaySongPage() {
   const [statsVisible, setStatsVisible] = useState(true)
   const ppsScales = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0]
   const [scaleIndex, setScaleIndex] = useState(3)
+
+  const elapsedRef = useRef<HTMLSpanElement>(null)
+  useRAFLoop(() => {
+    if (elapsedRef.current && song) {
+      const time = player.getRealTimeDuration(0, player.getTime())
+      const total = player.getRealTimeDuration(0, song.duration)
+      elapsedRef.current.innerText = `${formatTime(time)} / ${formatTime(total)}`
+    }
+  })
 
   const currentBpm = useAtomValue(player.currentBpm)
   const bpmModifier = useAtomValue(player.bpmModifier)
@@ -421,13 +446,6 @@ export default function PlaySongPage() {
           <>
             <TopBar
               title={songMeta?.title}
-              isLoading={!playerState.canPlay}
-              isPlaying={playerState.playing}
-              onTogglePlaying={() => player.toggle()}
-              onClickRestart={() => player.restart()}
-              onClickSkipToEnd={() => player.seek(player.getDuration())}
-              isLooping={songLoop}
-              onClickToggleLoop={() => player.store.set(player.songLoop, !songLoop)}
               onClickBack={() => {
                 player.stop()
                 navigate(`/studio?id=${encodeURIComponent(id)}&source=${source}`)
@@ -439,24 +457,67 @@ export default function PlaySongPage() {
               onClickStats={(e) => {
                 setStatsVisible(!statsVisible)
               }}
-              onToggleWaiting={() => setSongConfig({ ...songConfig, waiting: !waiting })}
-              isWaiting={waiting}
               statsVisible={statsVisible}
             />
             <MidiModal isOpen={isMidiModalOpen} onClose={() => setMidiModal(false)} />
-            <div className="relative min-w-full">
-              <SongScrubBar
-                rangeSelection={selectedRange}
-                setRange={(range: any) => player.setRange(range)}
-                height={40}
-              />
+            
+            {/* Relocated Bottom Control Bar (Full Width, Anchored) */}
+            <div className="fixed bottom-0 left-0 w-full h-[60px] z-40 bg-[#131313]/70 backdrop-blur-xl border-t border-[#6c79f0]/40 flex items-center justify-between px-6 select-none shadow-[0_-8px_32px_rgba(0,0,0,0.37),inset_0_1px_0_0_rgba(108,121,240,0.35)] pointer-events-auto">
+              {/* Scrub Bar at the top edge, spanning full width */}
+              <div className="absolute top-0 left-0 w-full transform -translate-y-1/2">
+                <SongScrubBar
+                  rangeSelection={selectedRange}
+                  setRange={(range: any) => player.setRange(range)}
+                />
+              </div>
+
+              {/* Left Section: Time display */}
+              <div className="flex items-center">
+                <span ref={elapsedRef} className="text-xs font-mono text-white/60 tracking-wider" />
+              </div>
+
+              {/* Center Section: Playback Controls */}
+              <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
+                <ButtonWithTooltip tooltip="Restart">
+                  <SkipBack size={20} className="text-white/70 hover:text-white transition-colors duration-200" onClick={() => player.restart()} />
+                </ButtonWithTooltip>
+
+                <button
+                  className="flex items-center justify-center rounded-full p-2.5 bg-[#6c79f0] hover:bg-[#9ba4ff] active:scale-95 transition-all text-black shadow-[0_0_15px_rgba(108,121,240,0.4)]"
+                  onClick={() => player.toggle()}
+                >
+                  {!playerState.canPlay ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-black" />
+                  ) : playerState.playing ? (
+                    <Pause className="w-5 h-5 fill-black text-black" />
+                  ) : (
+                    <Play className="w-5 h-5 fill-black text-black translate-x-[1px]" />
+                  )}
+                </button>
+
+                <ButtonWithTooltip tooltip="Skip to End">
+                  <SkipForward size={20} className="text-white/70 hover:text-white transition-colors duration-200" onClick={() => player.seek(player.getDuration())} />
+                </ButtonWithTooltip>
+
+                <ButtonWithTooltip tooltip="Toggle Loop" isActive={songLoop} onClick={() => player.store.set(player.songLoop, !songLoop)}>
+                  <Repeat size={20} className="transition-colors duration-200" />
+                </ButtonWithTooltip>
+
+                <ButtonWithTooltip tooltip="Wait Mode" isActive={waiting} onClick={() => setSongConfig({ ...songConfig, waiting: !waiting })}>
+                  <Target size={20} className="transition-colors duration-200" />
+                </ButtonWithTooltip>
+              </div>
+
+              {/* Right Section: Empty / Balancer */}
+              <div className="w-20" />
             </div>
+
             {statsVisible && <StatsPopup />}
             <div className="absolute left-4 top-20 z-30 flex flex-col gap-4 pointer-events-auto">
               <div className="flex items-stretch gap-3">
                 {/* BPM Ticket */}
                 <div className="flex flex-col justify-between rounded-[20px] bg-black/45 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),0_8px_32px_0_rgba(0,0,0,0.37)] border border-white/5 p-3 w-[168px]">
-                  <span className="text-[12px] font-black uppercase tracking-[0.18em] text-[#b08eff] text-center mb-1.5 select-none">TEMPO (BPM)</span>
+                  <span className="text-[12px] font-black uppercase tracking-[0.18em] text-[#6c79f0] text-center mb-1.5 select-none">TEMPO (BPM)</span>
                   <div className="flex items-center justify-between gap-1">
                     <button
                       className="cursor-pointer text-white/50 hover:text-white font-light text-2xl w-8 h-8 flex items-center justify-center transition select-none bg-transparent border-0"
@@ -513,7 +574,7 @@ export default function PlaySongPage() {
         )}
         <div
           className={clsx(
-            'fixed -z-10 h-[100vh] w-screen',
+            'fixed top-0 left-0 -z-10 h-[100vh] w-screen',
             'h-[100dvh]!',
             songConfig.visualization === 'sheet' ? 'bg-white' : 'bg-[#2e2e2e]',
           )}

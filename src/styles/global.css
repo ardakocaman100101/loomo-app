@@ -17,13 +17,13 @@
   --text-responsive-xxl: clamp(1.7rem, 1rem + 3vw, 4rem);
   --text-responsive-xl: clamp(1rem, 1rem + 1vw, 1.2rem);
 
-  --color-purple-lightest: #f7f4fe;
-  --color-purple-light: #eee5ff;
-  --color-purple-hover: #b99af4;
-  --color-purple-primary: #8147eb;
-  --color-purple-dark: #611ae5;
-  --color-purple-darker: #5326a6;
-  --color-purple-darkest: #280a6c;
+  --color-purple-lightest: #f0f2ff;
+  --color-purple-light: #dbe0ff;
+  --color-purple-hover: #9ba4ff;
+  --color-purple-primary: #6c79f0;
+  --color-purple-dark: #4f5cd8;
+  --color-purple-darker: #3843be;
+  --color-purple-darkest: #232a8f;
 
   --color-orange-light: #dc7e52;
   --color-orange-primary: #eb7847;

@@ -42,9 +42,10 @@ function getInitialScore(): Score {
   )
 
   const accuracy = atom((get) => {
-    const total = get(hit) + get(missed) + get(error)
+    const total = get(perfect) + get(early) + get(late) + get(missed)
+    const points = get(perfect) + 0.5 * (get(early) + get(late))
 
-    return total === 0 ? 100 : Math.round((100 * get(hit)) / total)
+    return total === 0 ? 100 : Math.round((100 * points) / total)
   })
 
   const hit = atom((get) => {
@@ -191,7 +192,7 @@ export class Player {
           this.pressFeedback.set(midiNote, 'green')
         } else {
           this.store.set(this.score.late, increment)
-          this.pressFeedback.set(midiNote, 'blue')
+          this.pressFeedback.set(midiNote, 'purple')
         }
         this.store.set(this.score.streak, increment)
         this.hitNotes.add(lateNote)

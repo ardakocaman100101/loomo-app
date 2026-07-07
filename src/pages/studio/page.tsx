@@ -933,7 +933,7 @@ export default function Studio() {
               stopPlayback();
               navigate(-1);
             }}
-            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 border border-white/10 text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all text-[#d0bcff]"
+            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 border border-white/10 text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all text-[#9ba4ff]"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
@@ -943,20 +943,20 @@ export default function Studio() {
 
           <div className="flex items-center gap-3">
             <Link to="/" onClick={() => stopPlayback()} className="flex items-center gap-2 group mr-2">
-              <Logo height={32} width={50} className="w-[50px] h-8 shadow-[0_0_20px_rgba(160,120,255,0.4)] group-hover:scale-105 transition-all cursor-pointer" />
-              <span className="text-xl font-bold tracking-tight text-white group-hover:text-[#d0bcff] transition-all cursor-pointer">loomo</span>
+              <Logo height={32} width={50} className="w-[50px] h-8 shadow-[0_0_20px_rgba(108,121,240,0.4)]" />
+              <span className="text-xl font-bold tracking-tight text-white group-hover:text-[#9ba4ff] transition-all cursor-pointer">loomo</span>
             </Link>
             <input
               type="text"
               value={songName}
               onChange={(e) => setSongName(e.target.value)}
-              className="bg-transparent text-xl font-bold tracking-tight text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#d0bcff]"
+              className="bg-transparent text-xl font-bold tracking-tight text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#9ba4ff]"
             />
           </div>
         </div>
 
         {/* Playback Controls & BPM */}
-        <div className="flex items-center gap-6 rounded-2xl glass-card px-6 py-2 border border-[#d0bcff]/10">
+        <div className="flex items-center gap-6 rounded-2xl glass-card px-6 py-2 border border-[#9ba4ff]/10">
           <div className="flex items-center gap-2">
             <button
               onClick={() => seekTo(0)}
@@ -968,7 +968,7 @@ export default function Studio() {
             <button
               onClick={togglePlayback}
               className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
-                isPlaying ? "bg-[#d0bcff] text-[#131313]" : "bg-white/5 hover:bg-white/10"
+                isPlaying ? "bg-[#9ba4ff] text-[#131313]" : "bg-white/5 hover:bg-white/10"
               }`}
             >
               {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
@@ -990,7 +990,7 @@ export default function Studio() {
               onClick={() => setIsLooping(!isLooping)}
               title="Toggle Loop"
               className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
-                isLooping ? "bg-[#d0bcff]/20 text-[#d0bcff] border border-[#d0bcff]/30" : "bg-white/5 hover:bg-white/10 text-[#e5e2e1]/80"
+                isLooping ? "bg-[#9ba4ff]/20 text-[#9ba4ff] border border-[#9ba4ff]/30" : "bg-white/5 hover:bg-white/10 text-[#e5e2e1]/80"
               }`}
             >
               <Repeat className="h-4 w-4" />
@@ -1007,7 +1007,7 @@ export default function Studio() {
               min={40}
               max={280}
               onChange={(e) => setBpm(Number(e.target.value))}
-              className="w-14 rounded-lg bg-white/5 py-1 text-center font-semibold text-[#d0bcff] focus:outline-none border border-white/5"
+              className="w-14 rounded-lg bg-white/5 py-1 text-center font-semibold text-[#9ba4ff] focus:outline-none border border-white/5"
             />
             <span className="text-[#cbc3d7] font-light">BPM</span>
           </div>
@@ -1048,7 +1048,7 @@ export default function Studio() {
 
           <button
             onClick={() => handleSaveAndPractice()}
-            className="flex items-center gap-2 rounded-xl bg-[#a078ff] px-5 py-2 text-white font-semibold shadow-[0_0_20px_rgba(160,120,255,0.4)] hover:shadow-[0_0_25px_rgba(160,120,255,0.6)] hover:bg-[#b088ff] active:scale-95 transition-all text-sm"
+            className="flex items-center gap-2 rounded-xl bg-[#6c79f0] px-5 py-2 text-white font-semibold shadow-[0_0_20px_rgba(108,121,240,0.4)] hover:shadow-[0_0_25px_rgba(108,121,240,0.6)] hover:bg-[#8591ff] active:scale-95 transition-all text-sm"
           >
             <Save className="h-4 w-4" />
             <span>Play</span>
@@ -1080,7 +1080,7 @@ export default function Studio() {
                 <span className="text-xs font-semibold uppercase tracking-wider text-[#cbc3d7]">Tracks</span>
                 <button
                   onClick={addTrack}
-                  className="flex items-center gap-1 text-[11px] font-bold text-[#d0bcff] hover:text-[#b088ff] px-2 py-1 bg-[#d0bcff]/5 rounded-lg border border-[#d0bcff]/10 hover:bg-[#d0bcff]/10"
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#9ba4ff] hover:text-[#8591ff] px-2 py-1 bg-[#9ba4ff]/5 rounded-lg border border-[#9ba4ff]/10 hover:bg-[#9ba4ff]/10"
                 >
                   <Plus className="h-3 w-3" />
                   Add
@@ -1101,7 +1101,7 @@ export default function Studio() {
                       onClick={() => setActiveTrack(trackId)}
                       className={`p-3 rounded-xl border transition-all cursor-pointer ${
                         isActive
-                          ? "bg-[#202020] border-[#d0bcff]/30 shadow-[0_0_15px_rgba(208,188,255,0.05)]"
+                          ? "bg-[#202020] border-[#9ba4ff]/30 shadow-[0_0_15px_rgba(155,164,255,0.05)]"
                           : "bg-white/3 border-white/5 hover:bg-white/5"
                       }`}
                     >
@@ -1111,7 +1111,7 @@ export default function Studio() {
                           value={track.name || ""}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => updateTrackName(trackId, e.target.value)}
-                          className="bg-transparent text-sm font-semibold text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#d0bcff] w-3/4"
+                          className="bg-transparent text-sm font-semibold text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#9ba4ff] w-3/4"
                         />
                         {Object.keys(tracks).length > 1 && (
                           <button
@@ -1242,7 +1242,7 @@ export default function Studio() {
                     key={z}
                     onClick={() => setZoomY(z)}
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      zoomY === z ? "bg-[#d0bcff] text-[#131313]" : "text-white/60 hover:text-white"
+                      zoomY === z ? "bg-[#9ba4ff] text-[#131313]" : "text-white/60 hover:text-white"
                     }`}
                   >
                     {z === 12 ? "S" : z === 16 ? "M" : z === 24 ? "L" : "XL"}
@@ -1265,7 +1265,7 @@ export default function Studio() {
           >
             {/* Playhead line — always 32px from the bottom of this viewport */}
             <div
-              className="pointer-events-none absolute left-0 right-0 h-[2px] bg-[#d0bcff] shadow-[0_0_8px_#d0bcff] z-50"
+              className="pointer-events-none absolute left-0 right-0 h-[2px] bg-[#9ba4ff] shadow-[0_0_8px_#9ba4ff] z-50"
               style={{ bottom: PLAYHEAD_BOTTOM }}
             />
 
@@ -1312,9 +1312,9 @@ export default function Studio() {
                       onDoubleClick={(e) => handleNoteDoubleClick(e, index)}
                       className={`absolute rounded-xl border cursor-move select-none flex flex-col justify-between px-1 transition-shadow ${
                         isSelected
-                          ? 'border-white bg-[#d0bcff] text-[#131313] shadow-[0_0_15px_rgba(208,188,255,0.9)] z-10'
+                          ? 'border-white bg-[#9ba4ff] text-[#131313] shadow-[0_0_15px_rgba(155,164,255,0.9)] z-10'
                           : isNoteActive
-                            ? 'border-[#d0bcff]/40 bg-[#a078ff]/80 text-white'
+                            ? 'border-[#9ba4ff]/40 bg-[#6c79f0]/80 text-white'
                             : 'border-white/10 bg-white/20 text-white/70'
                       }`}
                       style={{
@@ -1346,7 +1346,7 @@ export default function Studio() {
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[#cbc3d7]">Pitch:</span>
-                  <span className="text-sm font-bold text-[#d0bcff]">{getNoteName(selectedNote.midiNote)}</span>
+                  <span className="text-sm font-bold text-[#9ba4ff]">{getNoteName(selectedNote.midiNote)}</span>
                 </div>
                 <div className="h-6 w-[1px] bg-[#353534]" />
                 <div className="flex items-center gap-3">
@@ -1360,14 +1360,14 @@ export default function Studio() {
                       setNotes(updated);
                       pushHistory(updated, tracks);
                     }}
-                    className="w-32 accent-[#d0bcff] cursor-pointer"
+                    className="w-32 accent-[#9ba4ff] cursor-pointer"
                   />
-                  <span className="text-sm font-mono text-[#d0bcff] w-6">{selectedNote.velocity || 80}</span>
+                  <span className="text-sm font-mono text-[#9ba4ff] w-6">{selectedNote.velocity || 80}</span>
                 </div>
                 <div className="h-6 w-[1px] bg-[#353534]" />
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[#cbc3d7]">Duration:</span>
-                  <span className="text-sm font-mono text-[#d0bcff]">{selectedNote.duration.toFixed(2)}s</span>
+                  <span className="text-sm font-mono text-[#9ba4ff]">{selectedNote.duration.toFixed(2)}s</span>
                 </div>
               </div>
               <button
@@ -1403,11 +1403,23 @@ export default function Studio() {
                     style={{ minWidth: `${KEY_WIDTH}px`, width: `${KEY_WIDTH}px` }}
                   >
                     <span
-                      className={`font-mono text-[8.5px] font-medium tracking-tighter text-center w-full uppercase ${
+                      className={`font-mono text-center w-full uppercase flex items-baseline justify-center ${
                         isBlack ? 'text-[#FAF9F6]/25' : 'text-[#131313]/40'
                       }`}
                     >
-                      {getNoteName(key)}
+                      {(() => {
+                        const name = getNoteName(key);
+                        if (isBlack && name.includes('#')) {
+                          const parts = name.split('#');
+                          return (
+                            <>
+                              <span className="text-[10px] font-bold">{parts[0]}</span>
+                              <span className="text-[7px] font-normal">#{parts[1]}</span>
+                            </>
+                          );
+                        }
+                        return <span className="text-[8.5px] font-medium tracking-tighter">{name}</span>;
+                      })()}
                     </span>
                   </div>
                 );
