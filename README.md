@@ -14,14 +14,14 @@ That's why I built loomo. It can make you practice and create with two main feat
 You can also use the Practice page to create a track from stratch. MIDI files can be uploaded and saved. Each page is connected to each other. So you can play, quantise, remix and itirate to reach your desired song
 
 ### Tech Stack
-loomo is still a work in progress. I work full-time, so I’m building this solo as a passion project. The project is built web-first using React, TypeScript, and Vite
-
-I used leveraged two open source projects called Sightread for music rendering and Signal for DAW-like interface of MIDI
+loomo is still a work in progress. I work full-time, so I’m building this solo as a passion project. The project is built web-first using React, TypeScript, and Vite. The audio layer leverages the browser's native Web Audio API and Web MIDI API to process MIDI input and audio output in real time
 
 ### What's Next 
 I’m planning to drop some major features soon. Some might be:
 
 - Live looping controls and microstep build ups for multi-track songs
+
+- Sound effects with VSTs
 
 - Advanced audio visuals using TouchDesigner
 
@@ -32,4 +32,4 @@ You don’t have to be a hardcore developer or a trained musician to give me a f
 
 Let's see how far this goes :)
 
-Please read `CONTRIBUTING.md` if you'd like to contribute.
+Please read `CONTRIBUTING.md` if you'd like to contribute and `Architecture.md` if you are interested in the software on higher level
