@@ -1,32 +1,10 @@
-# Loomo Architecture & Overview
+# loomo Architecture & Overview
 
-Loomo is a democratized, web-based instrument practice and music editing platform designed for absolute beginners. While a MIDI keyboard provides the optimal plug-and-play experience, Loomo is instrument-agnostic and can be used with virtual inputs or other MIDI controllers.
-
----
-
-## Core Motivation
-
-Learning an instrument is historically challenging, with nearly 90% of beginners quitting within their first year due to the friction of reading traditional sheet music, expensive tutoring, and the steep learning curve of digital audio workstations. Loomo's core motivation is to democratize music education and creation by providing complete beginners with intuitive visual interfaces and instant play-along feedback, removing financial and cognitive barriers to entry.
-
----
-
-## Core Workflows & Use Cases
-
-Loomo coordinates learning, practicing, and editing music into a simple, iterative loop:
-
-1. **Upload and Import:** Users upload their own MIDI files or select from the pre-loaded library.
-2. **Review and Edit (studio):** Before practicing, users can open the **studio** to review note placements, adjust pitch and timing, or delete/add notes on a clean, visual grid without the clutter and complexity of a professional DAW.
-3. **Practice and Play (play mode):** Users connect their MIDI instrument or keyboard and play along. Instead of reading traditional notation, notes are represented as flowing keys aligned with the keys of an on-screen keyboard, where the block's length corresponds to the note's duration.
-4. **Feedback and Score:** As users play, Loomo provides instant color-coded visual feedback. At the end of the session, the scoring engine shows their accuracy, helping them reiterate until they master the track.
-5. **Slow Practice & Learning:** Users can slow down the tempo or turn on **Wait Mode**, which freezes the timeline and waits for them to hit the correct note before proceeding, making learning complex pieces stress-free.
-
----
 
 ## Tech Stack
 
 Loomo is built as a client-side Single Page Application (SPA) using **React**, **Vite**, and **TypeScript** for quick compilation, fast load times, and a responsive layout. The audio layer leverages the browser's native **Web Audio API** and **Web MIDI API** to process real-time input and output without external server latency, while utilizing **Tone.js** and Soundfonts for polyphonic instrument synthesis. **Jotai** manages light, reactive state atoms that sync playback, scoring, and UI controls efficiently. The interactive visualizations (like the scrolling keys in play mode) are rendered on an HTML5 **Canvas**, utilizing **requestAnimationFrame** to ensure smooth 60fps animations.
 
----
 
 ## Architectural Style & Design Patterns
 
@@ -36,7 +14,6 @@ For developers and musician-developers looking under the hood, Loomo is structur
 2. **Reactive State (Jotai):** Application state (current play state, note scores, active keys, and configuration toggles) is managed via decoupled Jotai atoms. This prevents massive UI re-renders and lets core audio controllers trigger visual changes instantly.
 3. **Game-Loop Canvas Drawing:** Visual assets (flowing keys, indicators) are drawn directly onto an HTML5 Canvas using a high-precision `requestAnimationFrame` loop. This bypasses the DOM completely, ensuring smooth 60fps animations during playback.
 
----
 
 ## Musician-Developer Deep Dive
 
@@ -61,7 +38,6 @@ $$\text{combined} = (\text{perfect} \times 100) + (\text{good} \times 50) - (\te
 
 $$\text{accuracy (\%)} = \frac{\text{perfect} + 0.5 \times (\text{early} + \text{late})}{\text{perfect} + \text{early} + \text{late} + \text{missed}} \times 100$$
 
----
 
 ### 2. Wait Mode Mechanics
 
@@ -78,7 +54,6 @@ if (this.wait && !this.hitNotes.has(note)) {
 ```
 This forces the timeline to freeze at `note.time`. The moment the user strikes the corresponding note on their instrument, the event listener adds the note to the `hitNotes` set. On the very next animation frame, the conditional block resolves as true, the loop continues, and playback resumes seamlessly until the next target note is reached.
 
----
 
 ### 3. MIDI Routing & External DAW / VST Integration
 
@@ -94,7 +69,6 @@ You can route Loomo's output directly into digital audio workstations (like Able
 2. **Configure your DAW:** Set your DAW's MIDI input port to listen to that same virtual MIDI bus.
 3. **Trigger VSTs:** Load your favorite software synth or plugin inside your DAW. Playback from Loomo will trigger your VSTs in real-time, giving you premium sound design possibilities.
 
----
 
 ## Top-Down Summary (Layered Structure)
 
@@ -105,7 +79,6 @@ The project logic flow goes from high-level routing down to utility libraries:
 3. **Components (`src/components/*`)**: Reusable UI parts (buttons, modals, sliders) that do not know about song state.
 4. **Hooks & Styling (`src/hooks/*`, `src/styles/*`)**: Shared triggers (resizing, animations) and core layout styling tokens.
 
----
 
 ## MIDI Processing & Audio Synthesis Flow
 
@@ -126,7 +99,6 @@ graph TD
 3. **Audio Output & External Routing:** Triggered notes are sent to [get-synth.ts](file:///Users/ardakocaman/Documents/Development/loomo/src/features/synth/get-synth.ts) to play on-board Soundfont voices, and concurrently broadcast to external ports for VST synth routing.
 4. **Re-Encoding to MIDI:** Changes made in the **studio** timeline editor are written back into standard MIDI binary files via [midi-encoder.ts](file:///Users/ardakocaman/Documents/Development/loomo/src/features/studio/midi-encoder.ts) so users can download their modifications.
 
----
 
 ## File Interactions & System Integration
 
@@ -157,7 +129,6 @@ When a user practices or edits a song, the system files coordinate as follows:
                                                                  +--------------------------+
 ```
 
----
 
 ## Architectural View (Top-Down File Directory)
 
@@ -167,7 +138,6 @@ Below is a top-down look at how the files in the `src/` directory are structured
 - [types.ts](file:///Users/ardakocaman/Documents/Development/loomo/src/types.ts): Contains global TypeScript interfaces for songs, notes, measures, playback stats, and configurations.
 - [ambient-types.d.ts](file:///Users/ardakocaman/Documents/Development/loomo/src/ambient-types.d.ts): Declares custom browser or environment types (like MIDI ports).
 
----
 
 ### Pages (`src/pages/`)
 Defines the main screens and visual layout of the application.
@@ -197,7 +167,6 @@ Defines the main screens and visual layout of the application.
   - [root.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/pages/root.tsx): Initializes global route wrappers, layouts, and page context setups.
   - [providers.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/pages/providers.tsx): Exposes shared application state providers to components.
 
----
 
 ### Features (`src/features/`)
 Self-contained functional modules for audio, MIDI, persistence, drawing, and visualization.
@@ -252,7 +221,6 @@ Self-contained functional modules for audio, MIDI, persistence, drawing, and vis
 - **`analytics/`**
   - [index.ts](file:///Users/ardakocaman/Documents/Development/loomo/src/features/analytics/index.ts): Sends anonymous metrics to help debug app issues.
 
----
 
 ### Shared Layout & UI Components (`src/components/`)
 Re-usable visual interface widgets.
@@ -265,7 +233,6 @@ Re-usable visual interface widgets.
 - [UploadMidi.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/components/UploadMidi.tsx): Interactive drag-and-drop midi file loader area.
 - Other widgets: [Dropdown.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/components/Dropdown.tsx), [Select.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/components/Select.tsx), [Slider.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/components/Slider.tsx), [TextInput.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/components/TextInput.tsx), [Toggle.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/components/Toggle.tsx), [Tooltip.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/components/Tooltip.tsx).
 
----
 
 ### Global Custom Hooks (`src/hooks/`)
 Standardized React helper hooks for standard tasks.
@@ -275,7 +242,6 @@ Standardized React helper hooks for standard tasks.
 - [useWhenClickedOutside.ts](file:///Users/ardakocaman/Documents/Development/loomo/src/hooks/useWhenClickedOutside.ts): Triggers modal or dropdown closure when clicking elsewhere.
 - [useSize.tsx](file:///Users/ardakocaman/Documents/Development/loomo/src/hooks/useSize.tsx) & [useWindowWidth.ts](file:///Users/ardakocaman/Documents/Development/loomo/src/hooks/useWindowWidth.ts): Detect layout dimension changes dynamically.
 
----
 
 ### Global Styling (`src/styles/`)
 Theme settings and styling configurations.
