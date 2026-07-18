@@ -101,6 +101,7 @@ export async function drawPianoRoll(
   measurements: PianoRollMeasurements,
   pianoTopY: number,
   activeNotes: Map<number, Color>,
+  activeFingerings?: Map<number, number>,
 ) {
   const { whiteHeight, whiteNoteSeparation, blackHeight, lanes } = measurements
   ctx.save()
@@ -145,10 +146,17 @@ export async function drawPianoRoll(
     const keyName = getKey(+midiNote)
     const isC = keyName === 'C'
     const octave = getOctave(+midiNote)
-    const txt = isC ? `C${octave}` : keyName
+    const hasFinger = activeFingerings?.has(+midiNote)
+    const txt = hasFinger && activeFingerings ? String(activeFingerings.get(+midiNote)) : (isC ? `C${octave}` : keyName)
 
-    ctx.fillStyle = 'rgba(19, 19, 19, 0.15)'
-    ctx.font = `bold ${width * 0.37}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+    if (hasFinger) {
+      ctx.fillStyle = 'rgba(108, 121, 240, 1.0)' // Loomo blue
+      ctx.font = `black ${width * 0.47}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+    } else {
+      ctx.fillStyle = 'rgba(19, 19, 19, 0.15)'
+      ctx.font = `bold ${width * 0.37}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+    }
+
     const { width: textWidth } = ctx.measureText(txt)
 
     ctx.textBaseline = 'bottom'
@@ -211,6 +219,19 @@ export async function drawPianoRoll(
     blackGrad.addColorStop(1, 'rgba(0, 0, 0, 0.90)') // Make bottom edge matte & dark
     ctx.fillStyle = blackGrad
     ctx.fillRect(left, posY, width, blackHeight)
+    if (activeFingerings?.has(+midiNote)) {
+      const finger = activeFingerings.get(+midiNote)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
+      ctx.font = `bold ${width * 0.45}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+      const txt = String(finger)
+      const { width: textWidth } = ctx.measureText(txt)
+      ctx.textBaseline = 'bottom'
+      ctx.fillText(
+        txt,
+        left + width / 2 - textWidth / 2,
+        posY + blackHeight - 6,
+      )
+    }
     ctx.restore()
 
     const blackActiveColor = activeNotes.get(+midiNote)

@@ -4,13 +4,11 @@ import { cn } from '@/utils'
 export default function Logo(props: LucideProps) {
   const { width, height, className, style } = props
   return (
-    <div className="rounded-2xl overflow-hidden flex items-center justify-center p-0" style={{ width, height }}>
+    <div className={cn("rounded-2xl overflow-hidden flex items-center justify-center p-0", className)} style={{ width, height, ...style }}>
       <img
-        src="/loomo_logo.png?v=7"
-        width={width ?? 192}
-        height={height ?? 192}
-        className={cn(className, 'object-contain')}
-        style={{ ...style, imageRendering: 'auto' }}
+        src="/loomo_logo.png?v=9"
+        className="w-full h-full object-contain"
+        style={{ imageRendering: 'auto' }}
         alt="Loomo Logo"
       />
     </div>

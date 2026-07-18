@@ -8,7 +8,7 @@ export type GivenState = {
   time: number
   noteLabels: NOTE_LABELS
   coloredNotes: boolean
-  visualization: 'falling-notes' | 'sheet'
+  visualization: 'falling-notes' | 'sheet' | 'reverse-waterfall'
   windowWidth: number
   height: number
   pps: number // pixels per second

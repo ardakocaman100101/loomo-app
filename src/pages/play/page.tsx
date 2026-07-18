@@ -448,7 +448,7 @@ export default function PlaySongPage() {
               title={songMeta?.title}
               onClickBack={() => {
                 player.stop()
-                navigate(`/studio?id=${encodeURIComponent(id)}&source=${source}`)
+                navigate(-1)
               }}
               onClickMidi={(e) => {
                 e.stopPropagation()

@@ -116,6 +116,7 @@ export type MidiEvent = {
   cc?: number
   value?: number
   timeStamp: number
+  channel?: number
 }
 
 function parseMidiMessage(event: MIDIMessageEvent): MidiEvent | null {
@@ -135,6 +136,7 @@ function parseMidiMessage(event: MIDIMessageEvent): MidiEvent | null {
       note: data[1],
       velocity: data[2],
       timeStamp: event.timeStamp,
+      channel,
     }
   }
 
@@ -144,6 +146,7 @@ function parseMidiMessage(event: MIDIMessageEvent): MidiEvent | null {
       cc: data[1],
       value: data[2],
       timeStamp: event.timeStamp,
+      channel,
     }
   }
 
@@ -191,21 +194,21 @@ class MidiState {
 
     enabledInputDevices.forEach((device) => {
       const name = device.name?.toLowerCase() || ''
-      if (name.includes('mini') || name.includes('25')) {
-        min = 48 // C3
-        max = 72 // C5
-        found = true
-      } else if (name.includes('49')) {
-        min = 36 // C2
-        max = 84 // C6
+      if (name.includes('88') || name.includes('piano')) {
+        min = 21 // A0
+        max = 108 // C8
         found = true
       } else if (name.includes('61')) {
         min = 36 // C2
         max = 96 // C7
         found = true
-      } else if (name.includes('88') || name.includes('piano')) {
-        min = 21 // A0
-        max = 108 // C8
+      } else if (name.includes('49')) {
+        min = 36 // C2
+        max = 84 // C6
+        found = true
+      } else if (name.includes('mini') || name.includes('25')) {
+        min = 48 // C3
+        max = 72 // C5
         found = true
       }
 
@@ -318,11 +321,11 @@ class MidiState {
     return this.pressedNotes
   }
 
-  press(note: number, velocity: number) {
+  press(note: number, velocity: number, channel?: number) {
     const time = Date.now()
     this.pressedNotes.set(note, { time, vel: velocity })
     this.updateObservedRange(note)
-    this.notify({ note, velocity, type: 'down', time })
+    this.notify({ note, velocity, type: 'down', time, channel })
   }
 
   updateObservedRange(note: number) {
@@ -342,9 +345,9 @@ class MidiState {
     }
   }
 
-  release(note: number) {
+  release(note: number, channel?: number) {
     this.pressedNotes.delete(note)
-    this.notify({ note, type: 'up', time: Date.now() })
+    this.notify({ note, type: 'up', time: Date.now(), channel })
   }
 
   releaseOutput(note: number) {
@@ -385,17 +388,18 @@ function onMidiMessage(e: MIDIMessageEvent) {
     return
   }
 
-  const { note, velocity, cc, value, type, timeStamp } = msg
+  const { note, velocity, cc, value, type, timeStamp, channel } = msg
   if (type === 'on' && velocity! > 0) {
-    midiState.press(note! + midiState.midiOctaveDiff * 12, velocity!)
+    midiState.press(note! + midiState.midiOctaveDiff * 12, velocity!, channel)
   } else if (type === 'off' || (type === 'on' && velocity === 0)) {
-    midiState.release(note! + midiState.midiOctaveDiff * 12)
+    midiState.release(note! + midiState.midiOctaveDiff * 12, channel)
   } else if (type === 'cc') {
     midiState.notify({
       type: 'cc',
       cc,
       value,
       time: Date.now(),
+      channel,
     })
   }
 }

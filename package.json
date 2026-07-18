@@ -33,6 +33,7 @@
     "vite-tsconfig-paths": "5.1.4"
   },
   "dependencies": {
+    "@lumikey/piano-fingering-model": "^0.3.0",
     "@radix-ui/react-slider": "1.3.6",
     "@radix-ui/react-tooltip": "1.2.8",
     "@react-router/node": "7.8.2",
@@ -45,6 +46,7 @@
     "jotai-effect": "2.1.0",
     "lucide-react": "0.542.0",
     "motion": "^12.38.0",
+    "onnxruntime-web": "^1.27.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-router": "7.8.2",

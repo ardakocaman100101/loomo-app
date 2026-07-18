@@ -7,14 +7,15 @@ export default class FreePlayer {
   raf: number | undefined
   song: Song
   active: Map<number, number> // Map from midiNote --> time created.
+  isRecording: boolean = false
 
   constructor() {
-    this.time = Number.MAX_SAFE_INTEGER
+    this.time = 0
     this.lastTime = 0
     this.active = new Map()
     this.song = {
-      bpms: [],
-      tracks: { 1: { instrument: 'piano' } },
+      bpms: [{ time: 0, bpm: 120 }],
+      tracks: { 0: { instrument: 'piano' } },
       measures: [],
       notes: [],
       duration: 0,
@@ -25,37 +26,41 @@ export default class FreePlayer {
       secondsToTicks: (seconds: number) => seconds * 480 * 2,
     }
     this.song.items = this.song.notes // Hack
-    if (isBrowser()) {
-      this.loop()
-    }
   }
 
   start() {
-    this.time = Number.MAX_SAFE_INTEGER
+    this.time = 0
     this.lastTime = Date.now()
     this.active.clear()
+    this.song.notes = []
+    this.song.items = this.song.notes
+    this.isRecording = true
     this.loop()
   }
 
   stop() {
+    this.isRecording = false
     if (typeof this.raf === 'number') {
       cancelAnimationFrame(this.raf)
+      this.raf = undefined
     }
   }
 
   loop() {
+    if (!this.isRecording) return
+
     this.raf = requestAnimationFrame(() => {
       const now = Date.now()
       const dt = now - this.lastTime
-      this.time -= dt
+      this.time += dt
       this.lastTime = now
 
-      // Extend each note.
+      // Extend each active note
+      const currentTime = this.getTime()
       for (let [midiNote, pressedTime] of this.active.entries()) {
-        let note = this.song.notes.find((n) => n.midiNote === midiNote)
+        let note = this.song.notes.find((n) => n.midiNote === midiNote && n.time === pressedTime)
         if (note) {
-          note.time = this.getTime()
-          note.duration = pressedTime - note.time
+          note.duration = Math.max(0, currentTime - note.time)
         }
       }
       this.loop()
@@ -63,19 +68,21 @@ export default class FreePlayer {
   }
 
   addNote(midiNote: number, velocity: number = 80) {
+    if (!this.isRecording) return
     const time = this.getTime()
     const note: SongNote = {
       midiNote,
       velocity,
       type: 'note',
-      track: 1,
+      track: 0,
       time,
       duration: 0,
       measure: 0,
     }
-    this.song.notes.unshift(note)
+    this.song.notes.push(note)
     this.active.set(midiNote, time)
   }
+
   releaseNote(midiNote: number) {
     this.active.delete(midiNote)
   }

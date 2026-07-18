@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router";
-import { useSong } from "@/features/data";
+import { useSong, ensureSongFunctions } from "@/features/data";
 import { useSongMetadata } from "@/features/data/library";
 import { getSynthStub, Synth, InstrumentName } from "@/features/synth";
 import gmInstruments from "@/features/synth/instruments";
@@ -9,7 +9,9 @@ import { parseMidi } from "@/features/parsers";
 import * as persistence from "@/features/persist/persistence";
 import midiState from "@/features/midi";
 import { bytesToBase64 } from "@/utils";
+import { predictSongFingerings } from "@/features/theory/fingering";
 import { useEventListener } from "@/hooks";
+import * as idb from 'idb-keyval';
 import { mutate } from "swr";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -78,7 +80,70 @@ export default function Studio() {
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [activeTrack, setActiveTrack] = useState<number>(0);
   const [selectedNoteIndex, setSelectedNoteIndex] = useState<number | null>(null);
+  const [hoveredNoteIndex, setHoveredNoteIndex] = useState<number | null>(null);
   const [clipboardNote, setClipboardNote] = useState<SongNote | null>(null);
+
+  const [isSavedToLibrary, setIsSavedToLibrary] = useState(false);
+
+  useEffect(() => {
+    async function checkSavedState() {
+      const list = await idb.get<any[]>("UPLOADED_SONGS");
+      if (list && id && list.some(s => s.id === id)) {
+        setIsSavedToLibrary(true);
+      }
+    }
+    checkSavedState();
+  }, [id]);
+
+  const handleSaveToLibrary = async () => {
+    const targetId = id || crypto.randomUUID();
+    const editedSong: Partial<Song> = {
+      tracks,
+      notes,
+      bpms: [{ time: 0, bpm }],
+      timeSignature: { numerator: 4, denominator: 4 },
+      keySignature: "C",
+      ppq: 480,
+      secondsToTicks: (s) => Math.round(s * 480 * (bpm / 60)),
+      ticksToSeconds: (t) => t / (480 * (bpm / 60)),
+    };
+    try {
+      const midiBytes = songToMidiBytes(editedSong);
+      const parsedSong = parseMidi(midiBytes as any);
+      
+      const songToSave = {
+        ...parsedSong,
+        notes: notes,
+        secondsToTicks: undefined,
+        ticksToSeconds: undefined,
+      };
+
+      let songWithFingerings = songToSave;
+      const needsPrediction = notes.some((n) => typeof n.finger !== "number");
+      if (needsPrediction) {
+        try {
+          const predicted = await predictSongFingerings(ensureSongFunctions(songToSave as any));
+          songWithFingerings = {
+            ...predicted,
+            secondsToTicks: undefined,
+            ticksToSeconds: undefined,
+          };
+          // Sync UI notes state with newly predicted fingerings
+          setNotes(predicted.notes);
+        } catch (err) {
+          console.error("Failed predicting fingerings during save to library:", err);
+        }
+      }
+      await idb.set(`SONG_DATA_${targetId}`, songWithFingerings);
+      
+      persistence.registerCustomSketch(targetId, songName, totalDuration);
+      setIsSavedToLibrary(true);
+      alert("Successfully saved to your Library!");
+    } catch (e) {
+      console.error("Failed to save to library", e);
+      alert("Failed to save to library. Please check console.");
+    }
+  };
 
   const [instrumentRange, setInstrumentRange] = useState(midiState.detectedRange);
   useEffect(() => {
@@ -137,15 +202,15 @@ export default function Studio() {
   const [historyIndex, setHistoryIndex] = useState(0);
 
   // Layout states
-  const MIN_ZOOM = 8; // minimum px per 16th note
-  const MAX_ZOOM = 64; // maximum px per 16th note
+  const MIN_ZOOM = 16; // minimum px per 16th note
+  const MAX_ZOOM = 160; // maximum px per 16th note
   const KEY_WIDTH = 40;
   const KEY_TOP_HEIGHT = 64;
   // Distance (px) from the bottom of the scroll container to the playhead line.
   // Increase this value to move the baseline higher, which makes the note visually
   // touch the line closer to the moment the audio fires.
   const PLAYHEAD_BOTTOM = 80;
-  const [zoomY, setZoomY] = useState<number>(32);
+  const [zoomY, setZoomY] = useState<number>(48);
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey) {
       e.preventDefault();
@@ -184,37 +249,43 @@ export default function Studio() {
   const pianoScrollRef = useRef<HTMLDivElement>(null);
   const scrollInitializedRef = useRef(false);
 
-  // Set initial scroll position after layout is computed.
+  // Set scroll position: center active notes horizontally, and align vertical scroll with the playhead.
   // useLayoutEffect runs synchronously after DOM paint, so clientHeight is always valid.
-  // We also guard: if a song is being loaded (id present), wait until notes are populated.
   useLayoutEffect(() => {
     if (isLoading) return;
-    if (scrollInitializedRef.current) return;
     const el = scrollContainerRef.current;
     if (!el || el.clientHeight === 0) return;
     // When loading an existing song, defer until notes are actually in state
     if (id && notes.length === 0) return;
 
-    // Horizontal: scroll to the lowest note pitch
-    let targetMidi = 60;
+    // 1. Horizontal: Center the active notes pitch range on load or zoom
     if (notes.length > 0) {
-      targetMidi = Math.min(...notes.map((n) => n.midiNote));
+      const minNote = Math.min(...notes.map((n) => n.midiNote));
+      const maxNote = Math.max(...notes.map((n) => n.midiNote));
+      const targetMidi = (minNote + maxNote) / 2;
+      const centerX = (targetMidi - minMidi) * KEY_WIDTH + KEY_WIDTH / 2;
+      const containerW = el.clientWidth || el.offsetWidth || 800;
+      const hOffset = Math.max(0, centerX - containerW / 2);
+      el.scrollLeft = hOffset;
+      if (pianoScrollRef.current) pianoScrollRef.current.scrollLeft = hOffset;
+    } else {
+      const hOffset = Math.max(0, (60 - minMidi - 2) * KEY_WIDTH);
+      el.scrollLeft = hOffset;
+      if (pianoScrollRef.current) pianoScrollRef.current.scrollLeft = hOffset;
     }
-    const hOffset = Math.max(0, (targetMidi - minMidi - 2) * KEY_WIDTH);
-    el.scrollLeft = hOffset;
-    if (pianoScrollRef.current) pianoScrollRef.current.scrollLeft = hOffset;
 
-    // Vertical: position so t=0 sits at the playhead (PLAYHEAD_BOTTOM px from bottom).
-    // With inverted Y, gridY(t=0) = gridH. We need:
-    //   scrollTop + (containerH - PLAYHEAD_BOTTOM) = gridH  =>  scrollTop = gridH - containerH + PLAYHEAD_BOTTOM
-    const containerH = el.clientHeight;
+    // 2. Vertical: Position current playback time at the playhead line (PLAYHEAD_BOTTOM px from bottom)
     const maxNoteEnd = notes.length > 0 ? Math.max(...notes.map(n => n.time + n.duration)) : 0;
     const computedTotalDur = Math.max(DEFAULT_DURATION, Math.ceil(maxNoteEnd + 4));
     const gridH = Math.ceil(computedTotalDur * (bpm / 60) * 4) * zoomY;
-    el.scrollTop = Math.max(0, gridH - containerH + PLAYHEAD_BOTTOM);
+    const containerH = el.clientHeight;
 
-    scrollInitializedRef.current = true;
-  });
+    const currentPlayTime = playbackTimeRef.current || 0;
+    const playheadY = gridH - (currentPlayTime * (bpm / 60) * 4 * zoomY);
+    const targetScrollTop = Math.max(0, playheadY - (containerH - PLAYHEAD_BOTTOM));
+    
+    el.scrollTop = targetScrollTop;
+  }, [isLoading, notes, minMidi, bpm, zoomY]);
 
   // On window resize: keep the scroll offset relative to the bottom constant
   // so the baseline stays aligned.
@@ -260,16 +331,28 @@ export default function Studio() {
       // Reset scroll so it re-initializes with the real notes after this render
       scrollInitializedRef.current = false;
       setSongName(songMeta?.title || "Untitled Song");
-      setNotes(loadedSong.notes || []);
-      setTracks(loadedSong.tracks || {
+      let normalizedTracks = { ...(loadedSong.tracks || {
         0: { name: "Melody", instrument: "acoustic_grand_piano", program: 0 },
-      });
+      }) };
+      let normalizedNotes = [...(loadedSong.notes || [])];
+
+      // Reconcile legacy recorded songs that used track index 1 instead of 0
+      if (normalizedTracks[1] && !normalizedTracks[0]) {
+        normalizedTracks[0] = normalizedTracks[1];
+        delete normalizedTracks[1];
+        normalizedNotes = normalizedNotes.map((n) =>
+          n.track === 1 ? { ...n, track: 0 } : n
+        );
+      }
+
+      setNotes(normalizedNotes);
+      setTracks(normalizedTracks);
       if (loadedSong.bpms && loadedSong.bpms.length > 0) {
         setBpm(loadedSong.bpms[0].bpm);
       }
       
       // Initialize history
-      const initialHistory = [{ notes: JSON.parse(JSON.stringify(loadedSong.notes || [])), tracks: { ...loadedSong.tracks } }];
+      const initialHistory = [{ notes: JSON.parse(JSON.stringify(normalizedNotes)), tracks: { ...normalizedTracks } }];
       setHistory(initialHistory);
       setHistoryIndex(0);
     } else if (!id) {
@@ -440,6 +523,28 @@ export default function Studio() {
       e.preventDefault();
       seekTo(totalDuration);
       return;
+    }
+
+    // Fingering Overwrite
+    if (selectedNoteIndex !== null) {
+      if (["1", "2", "3", "4", "5"].includes(e.key)) {
+        e.preventDefault();
+        const updated = [...notes];
+        updated[selectedNoteIndex] = { ...updated[selectedNoteIndex], finger: Number(e.key) };
+        setNotes(updated);
+        pushHistory(updated, tracks);
+        return;
+      }
+      if (e.key === "0") {
+        e.preventDefault();
+        const updated = [...notes];
+        const copy = { ...updated[selectedNoteIndex] };
+        delete copy.finger;
+        updated[selectedNoteIndex] = copy;
+        setNotes(updated);
+        pushHistory(updated, tracks);
+        return;
+      }
     }
 
     // Delete
@@ -783,7 +888,7 @@ export default function Studio() {
   };
 
   // Save changes and return to Practice/Play mode
-  const handleSaveAndPractice = (practiceTrackId?: number) => {
+  const handleSaveAndPractice = async (practiceTrackId?: number) => {
     stopPlayback();
     
     const targetId = id || crypto.randomUUID();
@@ -818,7 +923,37 @@ export default function Studio() {
 
       // Update SWR cache directly to avoid useSWRImmutable showing stale data
       const parsedSong = parseMidi(midiBytes as any);
-      mutate([targetId, targetSource], parsedSong, { revalidate: false });
+      
+      // Save the predicted and custom overrides directly to IndexedDB
+      const songToSave = {
+        ...parsedSong,
+        notes: notes,
+        secondsToTicks: undefined,
+        ticksToSeconds: undefined,
+      };
+
+      let songWithFingerings = songToSave;
+      const needsPrediction = notes.some((n) => typeof n.finger !== "number");
+      if (needsPrediction) {
+        try {
+          const predicted = await predictSongFingerings(ensureSongFunctions(songToSave as any));
+          songWithFingerings = {
+            ...predicted,
+            secondsToTicks: undefined,
+            ticksToSeconds: undefined,
+          };
+        } catch (err) {
+          console.error("Failed predicting fingerings during save and practice:", err);
+        }
+      }
+      await idb.set(`SONG_DATA_${targetId}`, songWithFingerings);
+      
+      const songWithFunctions = ensureSongFunctions({
+        ...parsedSong,
+        notes: songWithFingerings.notes,
+      } as Song);
+      
+      mutate([targetId, targetSource], songWithFunctions, { revalidate: false });
 
       // Redirect
       const queryParams = new URLSearchParams();
@@ -894,7 +1029,7 @@ export default function Studio() {
   const totalGridWidth = useMemo(() => pianoKeys.length * KEY_WIDTH, [pianoKeys.length]);
   const totalGridHeight = useMemo(() => {
     const totalSubdivisions = Math.ceil(totalDuration * (bpm / 60) * 4);
-    return totalSubdivisions * zoomY;
+    return totalSubdivisions * zoomY + PLAYHEAD_BOTTOM;
   }, [totalDuration, bpm, zoomY]);
 
   // CSS variables for background repeating grid lines
@@ -950,7 +1085,8 @@ export default function Studio() {
               type="text"
               value={songName}
               onChange={(e) => setSongName(e.target.value)}
-              className="bg-transparent text-xl font-bold tracking-tight text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#9ba4ff]"
+              className="bg-transparent text-xl font-bold tracking-tight text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#9ba4ff] transition-all"
+              style={{ width: `${Math.max(12, songName.length + 1)}ch`, minWidth: '150px', maxWidth: '400px' }}
             />
           </div>
         </div>
@@ -1047,10 +1183,23 @@ export default function Studio() {
           </button>
 
           <button
+            onClick={handleSaveToLibrary}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 transition-all text-sm font-medium border ${
+              isSavedToLibrary
+                ? "bg-emerald-600/20 border-emerald-500/30 text-emerald-400 cursor-default"
+                : "bg-white/5 border-white/15 hover:bg-white/10 text-white"
+            }`}
+            disabled={isSavedToLibrary}
+          >
+            <Save className="h-4 w-4" />
+            <span>{isSavedToLibrary ? "Saved" : "Save to Library"}</span>
+          </button>
+
+          <button
             onClick={() => handleSaveAndPractice()}
             className="flex items-center gap-2 rounded-xl bg-[#6c79f0] px-5 py-2 text-white font-semibold shadow-[0_0_20px_rgba(108,121,240,0.4)] hover:shadow-[0_0_25px_rgba(108,121,240,0.6)] hover:bg-[#8591ff] active:scale-95 transition-all text-sm"
           >
-            <Save className="h-4 w-4" />
+            <Play className="h-4 w-4" />
             <span>Play</span>
           </button>
         </div>
@@ -1237,7 +1386,7 @@ export default function Studio() {
             <div className="flex items-center gap-3">
               <span className="text-[#cbc3d7]">Zoom:</span>
               <div className="flex rounded-md bg-white/5 p-0.5 border border-white/5">
-                {[12, 16, 24, 32].map((z) => (
+                {[32, 48, 64, 96].map((z) => (
                   <button
                     key={z}
                     onClick={() => setZoomY(z)}
@@ -1245,7 +1394,7 @@ export default function Studio() {
                       zoomY === z ? "bg-[#9ba4ff] text-[#131313]" : "text-white/60 hover:text-white"
                     }`}
                   >
-                    {z === 12 ? "S" : z === 16 ? "M" : z === 24 ? "L" : "XL"}
+                    {z === 32 ? "S" : z === 48 ? "M" : z === 64 ? "L" : "XL"}
                   </button>
                 ))}
               </div>
@@ -1310,6 +1459,8 @@ export default function Studio() {
                       onMouseDown={(e) => handleNoteMouseDown(e, index, false)}
                       onClick={(e) => handleNoteClick(e, index)}
                       onDoubleClick={(e) => handleNoteDoubleClick(e, index)}
+                      onMouseEnter={() => setHoveredNoteIndex(index)}
+                      onMouseLeave={() => setHoveredNoteIndex(null)}
                       className={`absolute rounded-xl border cursor-move select-none flex flex-col justify-between px-1 transition-shadow ${
                         isSelected
                           ? 'border-white bg-[#9ba4ff] text-[#131313] shadow-[0_0_15px_rgba(155,164,255,0.9)] z-10'
@@ -1325,7 +1476,17 @@ export default function Studio() {
                         opacity: isSelected ? 1 : 0.4 + velocityFactor * 0.6,
                       }}
                     >
-                      <span className="text-[9px] font-bold truncate leading-none">{getNoteName(note.midiNote)}</span>
+                      {hoveredNoteIndex === index && (
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-black border border-white/20 rounded-lg text-sm font-black text-white whitespace-nowrap shadow-xl pointer-events-none">
+                          {note.finger ?? '—'}
+                        </div>
+                      )}
+                      <span className="text-[14px] font-black truncate leading-none mt-1.5 text-center w-full block">{getNoteName(note.midiNote)}</span>
+                      {isSelected && note.finger !== undefined && (
+                        <span className="text-[13px] font-black self-end bg-black/40 px-2 py-0.5 rounded border border-white/10 select-none mb-1.5 leading-none">
+                          {note.finger}
+                        </span>
+                      )}
                       <div
                         onMouseDown={(e) => handleNoteMouseDown(e, index, true)}
                         className="absolute top-0 left-0 h-2 w-full cursor-ns-resize rounded-t-xl hover:bg-white/30"

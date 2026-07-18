@@ -38,23 +38,29 @@ export default function SelectSongPage() {
 
   return (
     <>
-      <title>Select a song</title>
+      <title>Library</title>
       <Modal show={isUploadFormOpen} onClose={handleCloseAddNew}>
         <ManageFoldersForm onClose={handleCloseAddNew} />
       </Modal>
-      <div className="bg-[#15121a] text-[#e7e0ec] selection:bg-[#d0bcff]/30 flex min-h-screen w-full flex-col relative overflow-hidden">
-        {/* Deep Purple Perspective Gradient */}
+      <div className="bg-[#16182c] text-[#e5e2e1] selection:bg-[#6c79f0]/30 flex min-h-screen w-full flex-col relative overflow-hidden">
+        {/* Volumetric Expanded Ambient Lighting Glows */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[150%] h-1/2 glow-perspective" />
-          <div className="absolute top-1/4 right-0 w-96 h-96 bg-[#d0bcff]/10 blur-[120px] rounded-full" />
+          {/* Main expanded periwinkle glow */}
+          <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[1400px] h-[900px] rounded-full bg-[#6c79f0]/12 blur-[180px]" />
+          {/* Inner soft secondary indigo glow */}
+          <div className="absolute top-[50px] left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full bg-[#9ba4ff]/8 blur-[120px]" />
         </div>
 
         <div className="mx-auto flex w-full max-w-(--breakpoint-lg) grow flex-col p-6 pt-32 relative z-10">
-          <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.1] bg-gradient-to-r from-white via-[#e7e0ec] to-[#d0bcff] bg-clip-text text-transparent">
-            Select a Song
-          </h2>
-          <Sizer height={8} />
-          <h3 className="text-[#cbc3d5] font-light text-base md:text-lg max-w-2xl">Choose a song from your library and begin practicing</h3>
+          <div className="flex flex-col items-center text-center">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-[1.1] bg-gradient-to-r from-white via-[#e5e2e1] to-[#6c79f0] bg-clip-text text-transparent">
+              Library
+            </h2>
+            <Sizer height={8} />
+            <h3 className="text-[#cbc3d5] font-light text-base md:text-lg max-w-2xl">
+              Select a sample song from loomo’s library
+            </h3>
+          </div>
           <Sizer height={32} />
           <Table
             columns={[

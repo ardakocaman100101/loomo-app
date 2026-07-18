@@ -15,8 +15,10 @@ const builtinMetadataAtom = atom(builtinMetadata)
 const storageMetadataAtom = atom((get) => {
   const localSongs = Array.from(get(localSongsAtom).values()).flatMap((x) => x)
   const uploadedSongs = get(uploadedSongsAtom)
-  const allSongs = [...localSongs, ...uploadedSongs]
-  return allSongs.map((x) => [x.id, x]) as [string, SongMetadata][]
+  const allSongs = [...localSongs, ...uploadedSongs].filter(
+    (x) => !x.title?.toLowerCase().includes('untitled'),
+  )
+  return allSongs.map((x) => [getKey(x.id, x.source), x]) as [string, SongMetadata][]
 })
 
 export const songManifestAtom = atom<Map<string, SongMetadata>>((get) => {

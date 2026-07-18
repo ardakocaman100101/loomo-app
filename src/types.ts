@@ -43,6 +43,7 @@ export interface SongNote {
   duration: number
   velocity?: number
   measure: number
+  finger?: number
 }
 
 export interface Bpm {
@@ -83,7 +84,7 @@ export type Song = {
 }
 
 export type Clef = 'bass' | 'treble'
-export type VisualizationMode = 'falling-notes' | 'sheet'
+export type VisualizationMode = 'falling-notes' | 'sheet' | 'reverse-waterfall'
 export type Hand = 'both' | 'left' | 'right' | 'none'
 export type SongConfig = {
   left: boolean
@@ -114,6 +115,7 @@ export type MidiStateEvent = {
   velocity?: number
   cc?: number
   value?: number
+  channel?: number
 }
 
 export type HandSettings = {

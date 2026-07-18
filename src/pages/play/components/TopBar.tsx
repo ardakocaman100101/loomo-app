@@ -73,9 +73,9 @@ export default function TopBar({
         <ButtonWithTooltip tooltip="Choose a MIDI device" onClick={onClickMidi}>
           <Midi size={32} />
         </ButtonWithTooltip>
-        
+
         {!isMobile() && <VolumeSliderButton />}
-        
+
         <ButtonWithTooltip tooltip={statsVisible ? 'Hide Stats' : 'Show Stats'} onClick={onClickStats}>
           <BarChart2
             size={32}

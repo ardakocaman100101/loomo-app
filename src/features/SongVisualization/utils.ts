@@ -139,7 +139,7 @@ function getRange<T>(
   return array.slice(start, end)
 }
 
-function isMatchingHand(item: CanvasItem, state: GivenState) {
+export function isMatchingHand(item: CanvasItem, state: GivenState) {
   const { hand, hands } = state
   switch (item.type) {
     case 'measure':

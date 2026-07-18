@@ -18,6 +18,7 @@ import {
   getItemsInView,
   getOptimalFontSize,
   getSongRange,
+  isMatchingHand,
   Viewport,
 } from './utils'
 
@@ -105,23 +106,39 @@ type State = GivenState & {
 
 function deriveState(state: GivenState): State {
   let items = state.constrictView ? state.items : undefined
-  const notes: SongNote[] = items
-    ? (items.filter((i) => i.type === 'note') as SongNote[])
-    : ([{ midiNote: 21 }, { midiNote: 108 }] as SongNote[])
+  let startNote: number
+  let endNote: number
 
-  let minNotes = state.zoomMode ?? 0
-  if (state.zoomMode === undefined && state.height > state.windowWidth) {
-    // We allow the octaves to dictate the width, but keep a sensible minimum
-    // if the screen is very tall compared to width to avoid huge keys.
-    if (state.height > 800) minNotes = 48
-    else if (state.height > 600) minNotes = 36
-    else if (state.height > 500) minNotes = 24
-    else minNotes = 24
+  if (state.visualization === 'reverse-waterfall') {
+    const range = midiState.detectedRange
+    if (range) {
+      startNote = range.start
+      endNote = range.end
+      midiState.midiOctaveDiff = 0
+    } else {
+      startNote = 21
+      endNote = 108
+      midiState.midiOctaveDiff = 0
+    }
+  } else {
+    const notes: SongNote[] = items
+      ? (items.filter((i) => i.type === 'note') as SongNote[])
+      : ([{ midiNote: 21 }, { midiNote: 108 }] as SongNote[])
+
+    let minNotes = state.zoomMode ?? 0
+    if (state.zoomMode === undefined && state.height > state.windowWidth) {
+      if (state.height > 800) minNotes = 48
+      else if (state.height > 600) minNotes = 36
+      else if (state.height > 500) minNotes = 24
+      else minNotes = 24
+    }
+
+    const { startNote: songStart, endNote: songEnd } = getSongRange({ notes }, minNotes)
+    const instrumentRange = midiState.detectedRange
+    const range = getKeyboardRange(songStart, songEnd, instrumentRange)
+    startNote = range.startNote
+    endNote = range.endNote
   }
-
-  const { startNote: songStart, endNote: songEnd } = getSongRange({ notes }, minNotes)
-  const instrumentRange = midiState.detectedRange
-  const { startNote, endNote } = getKeyboardRange(songStart, songEnd, instrumentRange)
   const pianoMeasurements = getPianoRollMeasurements(state.windowWidth, { startNote, endNote })
   const pianoTopY = Math.max(0, state.height - pianoMeasurements.whiteHeight - 65)
   const pianoWidth = pianoMeasurements.pianoWidth
@@ -205,6 +222,14 @@ export function getKeyboardRange(
 }
 
 function getFallingNoteItemsInView<T>(state: State): CanvasItem[] {
+  if (state.visualization === 'reverse-waterfall') {
+    return state.items.filter((item) => {
+      if (item.type !== 'note') return false
+      const isStarted = item.time <= state.time
+      const isVisible = getItemStartEnd(item, state).end >= -state.height
+      return isStarted && isVisible
+    })
+  }
   // Items are sorted by ascending time.
   // Earliest items (small time) have the largest Y (below screen),
   // latest items (large time) have the smallest Y (above screen).
@@ -290,6 +315,21 @@ export function renderFallingVis(givenState: GivenState): void {
     renderRange(state)
   }
 
+  const activeFingerings = new Map<number, number>()
+  const perfectRangeMs = (Math.min(40 / 2, 250 / 2) / state.pps) * 1000 * 1.5
+  const perfectRangeSec = perfectRangeMs / 1000
+  
+  for (const item of items) {
+    if (item.type === 'note' && item.finger !== undefined) {
+      const noteItem = item as SongNote
+      const startSec = noteItem.time - perfectRangeSec
+      const endSec = noteItem.time + noteItem.duration
+      if (state.time >= startSec && state.time <= endSec) {
+        activeFingerings.set(noteItem.midiNote, noteItem.finger!)
+      }
+    }
+  }
+
   handlePianoRollMousePress(
     state.pianoMeasurements,
     state.pianoTopY,
@@ -300,6 +340,7 @@ export function renderFallingVis(givenState: GivenState): void {
     state.pianoMeasurements,
     state.pianoTopY,
     getActiveNotes(state),
+    activeFingerings,
   )
 }
 
@@ -319,8 +360,9 @@ function renderHitLine(state: State) {
   ctx.setLineDash([12, 4])
   ctx.strokeStyle = grad
   ctx.lineWidth = 4.8
-  ctx.moveTo(0, noteHitY)
-  ctx.lineTo(windowWidth, noteHitY)
+  const projectedY = projectPoint(0, noteHitY, state).y
+  ctx.moveTo(0, projectedY)
+  ctx.lineTo(windowWidth, projectedY)
   ctx.stroke()
 
   ctx.restore()
@@ -559,13 +601,52 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   const center = projectPoint(circleCenterX, circleCenterY, state)
   const radiusScaled = circleRadius * center.scale
 
-  if (noteLabels !== 'none') {
+  const perfectRangeMs = (Math.min(40 / 2, 250 / 2) / state.pps) * 1000 * 1.5
+  const perfectRangeSec = perfectRangeMs / 1000
+  const isFingeringActive = state.time >= (note.time - perfectRangeSec) && state.time <= (note.time + note.duration)
+
+  const key = getKey(note.midiNote, state.keySignature)
+  const labelType = noteLabels === 'none' ? 'alphabetical' : noteLabels
+  const noteText = labelType === 'alphabetical' ? key : getFixedDoNoteFromKey(key)
+
+  if (note.finger !== undefined && isFingeringActive) {
+    // 1. Center the note name precisely at the top of the capsule
+    ctx.fillStyle = '#ffffff'
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'
+    const noteNameFontPx = Math.max(16, Math.min(26, radiusScaled * 1.62))
+    ctx.font = `bold ${noteNameFontPx}px ui-sans-serif, system-ui, sans-serif`
+    // Position slightly below the top of the capsule
+    const nameY = topPt.y + radiusScaled * 0.7
+    ctx.fillText(noteText, topPt.x, nameY)
+
+    // 2. Position the finger number within its centered dark box at the absolute bottom
+    ctx.fillStyle = 'rgba(19, 19, 19, 0.85)'
+    const boxW = radiusScaled * 1.86
+    const boxH = radiusScaled * 1.86
+    const boxX = center.x - boxW / 2
+    const boxY = center.y - boxH / 2
+    
+    ctx.beginPath()
+    roundRect(ctx, boxX, boxY, boxW, boxH, {
+      topRadius: boxW / 4,
+      bottomRadius: boxW / 4,
+    })
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
+    ctx.lineWidth = 1.2
+    ctx.stroke()
+
+    ctx.fillStyle = '#ffffff'
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'
+    const fingerFontPx = Math.max(14, radiusScaled * 1.5)
+    ctx.font = `bold ${fingerFontPx}px ui-sans-serif, system-ui, sans-serif`
+    ctx.fillText(String(note.finger), center.x, center.y + fingerFontPx * 0.05)
+  } else if (noteLabels !== 'none') {
     ctx.fillStyle = 'white'
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
-    const key = getKey(note.midiNote, state.keySignature)
-    const noteText = noteLabels === 'alphabetical' ? key : getFixedDoNoteFromKey(key)
-
     const padding = 2
     const maxWidth = (circleRadius * 2 - padding * 2) * center.scale
     let { fontPx } = getOptimalFontSize(
@@ -581,22 +662,22 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
       const letterSize = fontPx * 1.1
       const sharpSize = fontPx * 0.7
 
-      ctx.font = `bold ${letterSize}px ${TEXT_FONT}`
+      ctx.font = `bold ${letterSize}px ui-sans-serif, system-ui, sans-serif`
       const letterW = ctx.measureText(letter).width
 
-      ctx.font = `bold ${sharpSize}px ${TEXT_FONT}`
+      ctx.font = `bold ${sharpSize}px ui-sans-serif, system-ui, sans-serif`
       const sharpW = ctx.measureText('#').width
 
       const totalW = letterW + sharpW
       const startX = center.x - totalW / 2
 
-      ctx.font = `bold ${letterSize}px ${TEXT_FONT}`
+      ctx.font = `bold ${letterSize}px ui-sans-serif, system-ui, sans-serif`
       ctx.fillText(letter, startX + letterW / 2, center.y + letterSize * 0.05)
 
-      ctx.font = `bold ${sharpSize}px ${TEXT_FONT}`
+      ctx.font = `bold ${sharpSize}px ui-sans-serif, system-ui, sans-serif`
       ctx.fillText('#', startX + letterW + sharpW / 2, center.y - letterSize * 0.12)
     } else {
-      ctx.font = `bold ${fontPx}px ${TEXT_FONT}`
+      ctx.font = `bold ${fontPx}px ui-sans-serif, system-ui, sans-serif`
       ctx.fillText(noteText, center.x, center.y + fontPx * 0.05)
     }
   }
@@ -619,6 +700,11 @@ function renderMeasure(measure: SongMeasure, state: State): void {
 }
 
 function getItemStartEnd(item: CanvasItem, state: State): { start: number; end: number } {
+  if (state.visualization === 'reverse-waterfall') {
+    const topY = state.noteHitY - (state.time - item.time) * state.pps
+    const bottomY = state.noteHitY - (state.time - (item.time + item.duration)) * state.pps
+    return { start: bottomY, end: topY }
+  }
   // Times are already in seconds from MIDI parser (tone.js), pps is pixels/second
   const noteScreenY = state.noteHitY - (item.time - state.time) * state.pps
   const endY = noteScreenY - item.duration * state.pps
