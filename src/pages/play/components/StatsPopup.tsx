@@ -10,7 +10,7 @@ export function StatsPopup({}) {
   const perfect = useAtomValue(player.score.perfect)
   const early = useAtomValue(player.score.early)
   const late = useAtomValue(player.score.late)
-  const missed = useAtomValue(player.score.missed)
+  const miss = useAtomValue(player.score.miss)
 
   return (
     <MovablePopup
@@ -39,15 +39,15 @@ export function StatsPopup({}) {
           </div>
         </div>
 
-        {/* Row 2: Late (Blue) & Missed (Red) */}
+        {/* Row 2: Late (Blue) & Miss (Red) */}
         <div className="grid grid-cols-2 gap-1.5">
           <div className="flex flex-col items-center rounded-xl bg-white/5 border border-white/5 py-1.5 px-2 min-w-0">
             <span className="text-[9px] font-bold text-purple-400/90 tracking-wider text-center select-none">LATE</span>
             <span className="text-xl font-bold text-purple-400 mt-1 leading-none">{late}</span>
           </div>
           <div className="flex flex-col items-center rounded-xl bg-white/5 border border-white/5 py-1.5 px-2 min-w-0">
-            <span className="text-[9px] font-bold text-red-500/90 tracking-wider text-center select-none">MISSED</span>
-            <span className="text-xl font-bold text-red-500 mt-1 leading-none">{missed}</span>
+            <span className="text-[9px] font-bold text-red-500/90 tracking-wider text-center select-none">MISS</span>
+            <span className="text-xl font-bold text-red-500 mt-1 leading-none">{miss}</span>
           </div>
         </div>
       </div>

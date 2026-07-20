@@ -31,12 +31,25 @@ The core player logic in [player.ts](file:///Users/ardakocaman/Documents/Develop
 - **Early:** Note played before the note's start time, within the broader `goodRange` window. Registered as `early` and colored **Yellow**.
 - **Error:** Pressed keys that do not correspond to any active/upcoming notes. Registered as `error` and colored **Red**, resetting the active streak to `0`.
 
-#### Points Math
-Scores are calculated reactively via Jotai atoms using the following formulas:
-$$\text{combined} = (\text{perfect} \times 100) + (\text{good} \times 50) - (\text{error} \times 25) + \text{durationHeld}$$
-*(where $\text{good} = \text{early} + \text{late}$ and $\text{durationHeld}$ is a bonus score accumulated by holding note keys for their correct duration)*
+#### Real-Time Note Duration Visual Feedback
+During playback, note capsules drawn on the visualizer dynamically fill with the timing accuracy feedback color based on how long the key is held:
+- **Proportional Filling:** When a note is pressed, its feedback color starts filling the capsule. If released early, the remainder of the capsule stays in default Loomo blue.
+- **Duration Overflow:** If held longer than the note's target duration, the capsule is stretched upwards and the overflow segment continues to be colored with the feedback color.
+- **Playhead Alignment:** For late strikes, the coloring starts exactly at the coordinates corresponding to the start of the keypress, preserving the Loomo blue segment for the portion that crossed the playhead before the strike.
 
-$$\text{accuracy (\%)} = \frac{\text{perfect} + 0.5 \times (\text{early} + \text{late})}{\text{perfect} + \text{early} + \text{late} + \text{missed}} \times 100$$
+#### Keyboard Finger Guidance Positioning
+Predicted fingerings from the hand analysis models are rendered as helper guides directly on the virtual keyboard:
+- Helper guides are placed at the middle of the top edge of each piano key rather than overlaying the scrolling notes.
+- Font sizes and opacities are adjusted to prevent guides from obscuring active keyboard indicators.
+
+#### Points Math
+
+Scores are calculated reactively via Jotai atoms using the following formulas:
+$$\text{combined} = \max\left(0, (\text{perfect} \times 100) + (\text{good} \times 50) - (\text{error} \times 25) + \text{durationHeld}\right)$$
+*(where $\text{good} = \text{early} + \text{late}$ and $\text{durationHeld}$ is a bonus score accumulated by holding note keys for their correct duration, floored at a minimum of 0)*
+
+$$\text{accuracy (\%)} = \frac{\text{perfect} + 0.5 \times (\text{early} + \text{late})}{\text{perfect} + \text{early} + \text{late} + \text{miss}} \times 100$$
+*(where $\text{miss} = \text{missed} + \text{error}$, representing both notes dropped and keys misplayed)*
 
 
 ### 2. Wait Mode Mechanics
@@ -68,6 +81,13 @@ You can route Loomo's output directly into digital audio workstations (like Able
 1. **Enable MIDI Output:** In Loomo, select a virtual MIDI bus (such as IAC Driver on macOS, or loopMIDI on Windows) as your output device.
 2. **Configure your DAW:** Set your DAW's MIDI input port to listen to that same virtual MIDI bus.
 3. **Trigger VSTs:** Load your favorite software synth or plugin inside your DAW. Playback from Loomo will trigger your VSTs in real-time, giving you premium sound design possibilities.
+
+
+### 4. Practice Mode & Note Visibility
+
+Practice Mode allows users to isolate and practice individual tracks within a MIDI song:
+- **HUD Controls:** Users can toggle practice settings on or off for individual tracks using the side panel HUD controls.
+- **Visibility and Scoring:** Notes belonging to tracks selected for practice are rendered as visual guides falling towards the keyboard keys and are evaluated by the timing accuracy scoring engine. Notes on non-practice tracks are hidden from the visualizer, but their audio continues to play back in the background as accompaniment.
 
 
 ## Top-Down Summary (Layered Structure)

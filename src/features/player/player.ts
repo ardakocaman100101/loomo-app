@@ -13,12 +13,13 @@ function increment(x: number) {
 
 type JotaiStore = ReturnType<typeof getDefaultStore>
 
-interface Score {
+export interface Score {
   perfect: PrimitiveAtom<number>
   early: PrimitiveAtom<number>
   late: PrimitiveAtom<number>
   good: Atom<number>
   missed: PrimitiveAtom<number>
+  miss: Atom<number>
   durationHeld: PrimitiveAtom<number>
   error: PrimitiveAtom<number>
   combined: Atom<number>
@@ -36,13 +37,15 @@ function getInitialScore(): Score {
   const streak = atom(0)
 
   const good = atom((get) => get(early) + get(late))
+  const miss = atom((get) => get(missed) + get(error))
 
-  const combined = atom(
-    (get) => get(perfect) * 100 + get(good) * 50 - get(error) * 25 + get(durationHeld),
-  )
+  const combined = atom((get) => {
+    const rawScore = get(perfect) * 100 + get(good) * 50 - get(error) * 25 + get(durationHeld)
+    return Math.max(0, rawScore)
+  })
 
   const accuracy = atom((get) => {
-    const total = get(perfect) + get(early) + get(late) + get(missed)
+    const total = get(perfect) + get(early) + get(late) + get(miss)
     const points = get(perfect) + 0.5 * (get(early) + get(late))
 
     return total === 0 ? 100 : Math.round((100 * points) / total)
@@ -52,7 +55,7 @@ function getInitialScore(): Score {
     return get(perfect) + get(good)
   })
 
-  return { perfect, early, late, good, missed, error, durationHeld, combined, accuracy, streak }
+  return { perfect, early, late, good, missed, miss, error, durationHeld, combined, accuracy, streak }
 }
 
 export type PlayerState = 'CannotPlay' | 'Playing' | 'Paused'
@@ -159,6 +162,16 @@ export class Player {
     if (midiEvent.type === 'up') {
       this.midiPressedNotes.delete(midiNote)
       this.pressFeedback.delete(midiNote)
+      // Find the active hit note that is currently being pressed and record the end time
+      for (const note of this.hitNotes) {
+        if (
+          note.midiNote === midiNote &&
+          note.userPressStart !== undefined &&
+          note.userPressEnd === undefined
+        ) {
+          note.userPressEnd = this.currentSongTime
+        }
+      }
       return
     } else {
       this.midiPressedNotes.add(midiNote)
@@ -190,11 +203,14 @@ export class Player {
         if (diff < this.perfectRange) {
           this.store.set(this.score.perfect, increment)
           this.pressFeedback.set(midiNote, 'green')
+          lateNote.feedbackColor = 'green'
         } else {
           this.store.set(this.score.late, increment)
           this.pressFeedback.set(midiNote, 'purple')
+          lateNote.feedbackColor = 'purple'
         }
         this.store.set(this.score.streak, increment)
+        lateNote.userPressStart = currentTime
         this.hitNotes.add(lateNote)
         if (this.skipMissedNotes) {
           this.playNote(lateNote)
@@ -211,12 +227,15 @@ export class Player {
         if (diff < this.perfectRange) {
           this.store.set(this.score.perfect, increment)
           this.pressFeedback.set(midiNote, 'green')
+          nextNote.feedbackColor = 'green'
         } else {
           this.store.set(this.score.early, increment)
           this.pressFeedback.set(midiNote, 'yellow')
+          nextNote.feedbackColor = 'yellow'
         }
 
         this.store.set(this.score.streak, increment)
+        nextNote.userPressStart = this.currentSongTime
         this.hitNotes.add(nextNote)
         return
       }
@@ -633,6 +652,14 @@ export class Player {
     this.store.set(this.score.error, 0)
     this.store.set(this.score.durationHeld, 0)
     this.store.set(this.score.streak, 0)
+    const song = this.getSong()
+    if (song) {
+      song.notes.forEach((note) => {
+        delete note.userPressStart
+        delete note.userPressEnd
+        delete note.feedbackColor
+      })
+    }
   }
 
   resetMetronome() {

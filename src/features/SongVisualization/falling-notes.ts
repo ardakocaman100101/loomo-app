@@ -368,6 +368,32 @@ function renderHitLine(state: State) {
   ctx.restore()
 }
 
+function getNoteFeedbackColor(state: State, note: SongNote): string | undefined {
+  if (state.player.missedNotes.has(note)) {
+    return feedbackColors.red
+  }
+  if (note.feedbackColor) {
+    return feedbackColors[note.feedbackColor] ?? note.feedbackColor
+  }
+  // Fallback to active press feedback if not saved yet
+  const feedback = state.player.pressFeedback.get(note.midiNote)
+  if (feedback) {
+    return feedbackColors[feedback] ?? feedback
+  }
+  return undefined
+}
+
+function getNoteDefaultColor(state: State, note: SongNote): string {
+  const hand = state.hands[note.track]?.hand ?? 'both'
+  const keyType = isBlack(note.midiNote) ? 'black' : 'white'
+
+  if (hand === 'both' || hand === 'right') {
+    return colors.right[keyType]
+  } else {
+    return colors.left[keyType]
+  }
+}
+
 function getNoteColor(state: State, note: SongNote, isActiveTarget: boolean): string {
   if (state.player.missedNotes.has(note)) {
     return feedbackColors.red
@@ -511,7 +537,8 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   const minLengthToDisplayCircle = Math.max(circleRadius * 2, 18)
   const length = Math.max(actualLength, minLengthToDisplayCircle)
 
-  const color = getNoteColor(state, note, isActiveTarget)
+  const defaultColor = getNoteDefaultColor(state, note)
+  const feedbackColor = getNoteFeedbackColor(state, note)
 
   const getRgbaColor = (hexOrName: string, alpha: number): string => {
     if (hexOrName.startsWith('#')) {
@@ -550,6 +577,15 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
 
   const isPerfectCircle = actualLength <= minLengthToDisplayCircle
   const tailTopY = isPerfectCircle ? (circleCenterY - circleRadius) : (posY - length)
+
+  let overflowPixels = 0
+  if (note.userPressStart !== undefined && feedbackColor !== undefined) {
+    const pressEnd = note.userPressEnd ?? state.time
+    if (!isNaN(note.userPressStart) && !isNaN(pressEnd)) {
+      overflowPixels = Math.max(0, (pressEnd - (note.time + note.duration)) * state.pps)
+    }
+  }
+  const drawnTopY = tailTopY - overflowPixels
   const r = isPerfectCircle ? circleRadius : (circleRadius * 0.4)
 
   const localPoints: { x: number; y: number }[] = []
@@ -568,7 +604,7 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   for (let j = 0; j <= numCornerPoints; j++) {
     const angle = Math.PI + (j / numCornerPoints) * (Math.PI / 2)
     const x = (circleCenterX - circleRadius + r) + r * Math.cos(angle)
-    const y = (tailTopY + r) + r * Math.sin(angle)
+    const y = (drawnTopY + r) + r * Math.sin(angle)
     localPoints.push({ x, y })
   }
 
@@ -576,7 +612,7 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   for (let j = 0; j <= numCornerPoints; j++) {
     const angle = 1.5 * Math.PI + (j / numCornerPoints) * (Math.PI / 2)
     const x = (circleCenterX + circleRadius - r) + r * Math.cos(angle)
-    const y = (tailTopY + r) + r * Math.sin(angle)
+    const y = (drawnTopY + r) + r * Math.sin(angle)
     localPoints.push({ x, y })
   }
 
@@ -590,10 +626,58 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   ctx.closePath()
 
   const bottomPt = projectPoint(circleCenterX, posY, state)
-  const topPt = projectPoint(circleCenterX, tailTopY, state)
-  const grad = ctx.createLinearGradient(circleCenterX, bottomPt.y, circleCenterX, topPt.y)
-  grad.addColorStop(0, getRgbaColor(color, 1.0))
-  grad.addColorStop(1, getRgbaColor(color, 0.8))
+  const topPt = projectPoint(circleCenterX, drawnTopY, state)
+
+  let startRatio = 0
+  let endRatio = 0
+  if (note.userPressStart !== undefined && feedbackColor !== undefined) {
+    const pressEnd = note.userPressEnd ?? state.time
+    if (note.duration > 0 && !isNaN(note.userPressStart) && !isNaN(pressEnd)) {
+      const origStartRatio = Math.min(1, Math.max(0, (note.userPressStart - note.time) / note.duration))
+      const origEndRatio = Math.min(1, Math.max(0, (pressEnd - note.time) / note.duration))
+      const extendedLength = length + overflowPixels
+      startRatio = (origStartRatio * length) / extendedLength
+      endRatio = overflowPixels > 0 ? 1.0 : (origEndRatio * length) / extendedLength
+    } else {
+      startRatio = 0
+      endRatio = 1
+    }
+  }
+
+  let grad: CanvasGradient | string = defaultColor
+  try {
+    const g = ctx.createLinearGradient(circleCenterX, bottomPt.y, circleCenterX, topPt.y)
+    if (startRatio < endRatio && feedbackColor) {
+      // Bottom segment of the note (before it was pressed) remains default color
+      if (startRatio > 0) {
+        g.addColorStop(0, getRgbaColor(defaultColor, 1.0))
+        g.addColorStop(startRatio, getRgbaColor(defaultColor, 0.9))
+      }
+      
+      // Pressed segment is colored with the feedback color
+      const startColorStop = startRatio > 0 ? startRatio : 0
+      g.addColorStop(startColorStop, getRgbaColor(feedbackColor, 1.0))
+      g.addColorStop(endRatio, getRgbaColor(feedbackColor, 0.9))
+      
+      // Top segment of the note (after it was released) remains default color
+      if (endRatio < 1) {
+        g.addColorStop(endRatio, getRgbaColor(defaultColor, 0.9))
+        g.addColorStop(1, getRgbaColor(defaultColor, 0.8))
+      }
+    } else {
+      if (feedbackColor === feedbackColors.red && feedbackColor) {
+        g.addColorStop(0, getRgbaColor(feedbackColor, 1.0))
+        g.addColorStop(1, getRgbaColor(feedbackColor, 0.8))
+      } else {
+        g.addColorStop(0, getRgbaColor(defaultColor, 1.0))
+        g.addColorStop(1, getRgbaColor(defaultColor, 0.8))
+      }
+    }
+    grad = g
+  } catch (e) {
+    console.warn('Failed to create linear gradient for note rendering, falling back to solid color:', e)
+    grad = defaultColor
+  }
 
   ctx.fillStyle = grad
   ctx.fill()
@@ -609,41 +693,7 @@ export function renderFallingNote(note: SongNote, state: State, isActiveTarget: 
   const labelType = noteLabels === 'none' ? 'alphabetical' : noteLabels
   const noteText = labelType === 'alphabetical' ? key : getFixedDoNoteFromKey(key)
 
-  if (note.finger !== undefined && isFingeringActive) {
-    // 1. Center the note name precisely at the top of the capsule
-    ctx.fillStyle = '#ffffff'
-    ctx.textBaseline = 'middle'
-    ctx.textAlign = 'center'
-    const noteNameFontPx = Math.max(16, Math.min(26, radiusScaled * 1.62))
-    ctx.font = `bold ${noteNameFontPx}px ui-sans-serif, system-ui, sans-serif`
-    // Position slightly below the top of the capsule
-    const nameY = topPt.y + radiusScaled * 0.7
-    ctx.fillText(noteText, topPt.x, nameY)
-
-    // 2. Position the finger number within its centered dark box at the absolute bottom
-    ctx.fillStyle = 'rgba(19, 19, 19, 0.85)'
-    const boxW = radiusScaled * 1.86
-    const boxH = radiusScaled * 1.86
-    const boxX = center.x - boxW / 2
-    const boxY = center.y - boxH / 2
-    
-    ctx.beginPath()
-    roundRect(ctx, boxX, boxY, boxW, boxH, {
-      topRadius: boxW / 4,
-      bottomRadius: boxW / 4,
-    })
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
-    ctx.lineWidth = 1.2
-    ctx.stroke()
-
-    ctx.fillStyle = '#ffffff'
-    ctx.textBaseline = 'middle'
-    ctx.textAlign = 'center'
-    const fingerFontPx = Math.max(14, radiusScaled * 1.5)
-    ctx.font = `bold ${fingerFontPx}px ui-sans-serif, system-ui, sans-serif`
-    ctx.fillText(String(note.finger), center.x, center.y + fingerFontPx * 0.05)
-  } else if (noteLabels !== 'none') {
+  if (noteLabels !== 'none') {
     ctx.fillStyle = 'white'
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'

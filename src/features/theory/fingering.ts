@@ -101,10 +101,17 @@ export async function predictSongFingerings(song: Song, config?: SongConfig): Pr
       };
     });
 
-    return {
+    const updatedSong: Song = {
       ...song,
       notes: newNotes,
     };
+
+    if (song.items) {
+      const measures = song.items.filter((item) => item.type === 'measure');
+      updatedSong.items = [...measures, ...newNotes].sort((a, b) => a.time - b.time);
+    }
+
+    return updatedSong;
   } catch (err) {
     console.error('Prediction failed, returning unmodified song:', err);
     return song;

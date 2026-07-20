@@ -44,6 +44,9 @@ export interface SongNote {
   velocity?: number
   measure: number
   finger?: number
+  userPressStart?: number
+  userPressEnd?: number
+  feedbackColor?: string
 }
 
 export interface Bpm {

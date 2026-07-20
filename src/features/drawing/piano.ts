@@ -146,25 +146,32 @@ export async function drawPianoRoll(
     const keyName = getKey(+midiNote)
     const isC = keyName === 'C'
     const octave = getOctave(+midiNote)
-    const hasFinger = activeFingerings?.has(+midiNote)
-    const txt = hasFinger && activeFingerings ? String(activeFingerings.get(+midiNote)) : (isC ? `C${octave}` : keyName)
+    const labelTxt = isC ? `C${octave}` : keyName
 
-    if (hasFinger) {
-      ctx.fillStyle = 'rgba(108, 121, 240, 1.0)' // Loomo blue
-      ctx.font = `black ${width * 0.47}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
-    } else {
-      ctx.fillStyle = 'rgba(19, 19, 19, 0.15)'
-      ctx.font = `bold ${width * 0.37}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
-    }
-
-    const { width: textWidth } = ctx.measureText(txt)
-
+    ctx.fillStyle = 'rgba(19, 19, 19, 0.15)'
+    ctx.font = `bold ${width * 0.37}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+    const { width: labelWidth } = ctx.measureText(labelTxt)
     ctx.textBaseline = 'bottom'
     ctx.fillText(
-      txt,
-      left + width / 2 - textWidth / 2 - measurements.whiteNoteSeparation / 2,
+      labelTxt,
+      left + width / 2 - labelWidth / 2 - measurements.whiteNoteSeparation / 2,
       pianoTopY + whiteHeight - 5,
     )
+
+    // Top finger number helper if active
+    if (activeFingerings?.has(+midiNote)) {
+      const finger = activeFingerings.get(+midiNote)
+      const fingerTxt = String(finger)
+      ctx.fillStyle = 'rgba(108, 121, 240, 0.45)' // Loomo blue at 45% opacity
+      ctx.font = `bold ${width * 0.35}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+      const { width: fingerWidth } = ctx.measureText(fingerTxt)
+      ctx.textBaseline = 'top'
+      ctx.fillText(
+        fingerTxt,
+        left + width / 2 - fingerWidth / 2 - measurements.whiteNoteSeparation / 2,
+        pianoTopY + 12, // 12px below the top of the white key
+      )
+    }
   }
 
   for (let [midiNote, lane] of blackNotes) {
@@ -221,15 +228,15 @@ export async function drawPianoRoll(
     ctx.fillRect(left, posY, width, blackHeight)
     if (activeFingerings?.has(+midiNote)) {
       const finger = activeFingerings.get(+midiNote)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
-      ctx.font = `bold ${width * 0.45}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)' // White at 45% opacity
+      ctx.font = `bold ${width * 0.35}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
       const txt = String(finger)
       const { width: textWidth } = ctx.measureText(txt)
-      ctx.textBaseline = 'bottom'
+      ctx.textBaseline = 'top'
       ctx.fillText(
         txt,
         left + width / 2 - textWidth / 2,
-        posY + blackHeight - 6,
+        posY + 12, // 12px below the top of the black key
       )
     }
     ctx.restore()
