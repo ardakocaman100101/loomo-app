@@ -5,7 +5,6 @@ import midiState, { initializeMidi } from '@/features/midi'
 import { requiresPermissionAtom, scanFolders } from '@/features/persist/persistence'
 import { usePlayer } from '@/features/player'
 import { getHandSettings, getSongSettings, SongVisualizer } from '@/features/SongVisualization'
-import { getSynthStub } from '@/features/synth'
 import {
   useEventListener,
   useLazyStableRef,
@@ -179,11 +178,7 @@ export default function PlaySongPage() {
     }
   }, [ppsScales.length])
   const playerState = usePlayerState()
-  const synth = useLazyStableRef(() => getSynthStub('acoustic_grand_piano'))
   const instrumentVolume = useAtomValue(player.instrumentVolume)
-  useEffect(() => {
-    synth.setMasterVolume(instrumentVolume)
-  }, [synth, instrumentVolume])
   let { data: song, error, isLoading, mutate } = useSong(id, source)
   let songMeta = useSongMetadata(id, source)
   const range = useAtomValue(player.getRange())
@@ -353,9 +348,9 @@ export default function PlaySongPage() {
     const handleMidiEvent = ({ type, note, velocity, cc, value }: MidiStateEvent) => {
       console.log('PlayPage handleMidiEvent', type, note, velocity)
       if (type === 'down' && note !== undefined) {
-        synth.playNote(note, velocity!)
+        player.playUserNote(note, velocity!)
       } else if (type === 'up' && note !== undefined) {
-        synth.stopNote(note, velocity)
+        player.stopUserNote(note)
       } else if (type === 'cc') {
         // Knob 1 (CC 74): Volume
         if (cc === 74) {
@@ -385,7 +380,7 @@ export default function PlaySongPage() {
 
     midiState.subscribe(handleMidiEvent)
     return () => midiState.unsubscribe(handleMidiEvent)
-  }, [synth, player, handleToggleMute, songConfig.tracks, setSongConfig])
+  }, [player, handleToggleMute, songConfig.tracks, setSongConfig])
 
   const handleLoopingToggle = (enable: boolean) => {
     if (!enable) {

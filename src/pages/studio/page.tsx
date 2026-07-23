@@ -28,6 +28,12 @@ import {
   Volume2,
   Music,
   Piano,
+  Guitar,
+  Drum,
+  AudioWaveform,
+  Search,
+  ChevronDown,
+  Check,
   Sliders,
   X,
   PlusCircle,
@@ -55,6 +61,167 @@ const getNoteName = (midiNote: number) => {
   const octave = Math.floor(midiNote / 12) - 1;
   return `${names[midiNote % 12]}${octave}`;
 };
+
+// Instrument Category & Icon helpers for sidebar modernization
+const getInstrumentCategory = (inst: string) => {
+  const i = inst.toLowerCase();
+  if (['acoustic_grand_piano', 'bright_acoustic_piano', 'electric_grand_piano', 'honkytonk_piano', 'electric_piano_1', 'electric_piano_2', 'harpsichord', 'clavinet', 'celesta'].includes(i)) return 'Pianos';
+  if (i.includes('guitar') || i.includes('bass')) return 'Guitars';
+  if (i.includes('organ') || i.includes('accordion') || i.includes('harmonica')) return 'Organs';
+  if (['violin', 'viola', 'cello', 'contrabass', 'tremolo_strings', 'pizzicato_strings', 'orchestral_harp', 'string_ensemble_1', 'string_ensemble_2'].includes(i)) return 'Strings';
+  if (i.includes('trumpet') || i.includes('trombone') || i.includes('tuba') || i.includes('horn') || i.includes('brass') || i.includes('sax') || i.includes('flute') || i.includes('oboe') || i.includes('clarinet') || i.includes('recorder')) return 'Brass & Winds';
+  if (i.includes('lead') || i.includes('pad') || i.includes('fx') || i.includes('synth')) return 'Synths';
+  return 'Percussion';
+};
+
+const getInstrumentIcon = (inst: string) => {
+  const cat = getInstrumentCategory(inst);
+  switch (cat) {
+    case 'Pianos': return Piano;
+    case 'Guitars': return Guitar;
+    case 'Strings': return Music;
+    case 'Brass & Winds': return AudioWaveform;
+    case 'Synths': return Sparkles;
+    case 'Percussion': return Drum;
+    default: return Sliders;
+  }
+};
+
+const formatInstrumentLabel = (inst: string) => {
+  return inst
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (l) => l.toUpperCase())
+    .replace(/\bEp\b/gi, 'EP')
+    .replace(/\bFx\b/gi, 'FX');
+};
+
+const INSTRUMENT_CATEGORIES = ['All', 'Pianos', 'Guitars', 'Strings', 'Brass & Winds', 'Synths', 'Percussion'];
+
+function InstrumentPillSelect({
+  value,
+  onSelect,
+}: {
+  value: InstrumentName;
+  onSelect: (inst: InstrumentName) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [category, setCategory] = useState('All');
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const Icon = getInstrumentIcon(value);
+
+  const filteredInstruments = useMemo(() => {
+    return gmInstruments.filter((inst) => {
+      const matchesSearch = inst.replace(/_/g, ' ').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCat = category === 'All' || getInstrumentCategory(inst) === category;
+      return matchesSearch && matchesCat;
+    });
+  }, [searchQuery, category]);
+
+  return (
+    <div className="relative w-full">
+      {/* Modern Pill Component */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className="w-full flex items-center justify-between gap-2 px-3.5 py-2 rounded-full bg-white/10 border border-white/15 hover:bg-white/15 hover:border-white/25 active:scale-95 transition-all text-xs font-semibold text-white shadow-sm cursor-pointer group"
+      >
+        <div className="flex items-center gap-2 truncate">
+          <Icon className="h-3.5 w-3.5 text-[#9ba4ff] shrink-0" />
+          <span className="truncate font-semibold text-white tracking-wide">{formatInstrumentLabel(value)}</span>
+        </div>
+        <ChevronDown className={`h-3.5 w-3.5 text-white/50 group-hover:text-white transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Floating Frosted-Glass Panel */}
+      {isOpen && (
+        <div
+          ref={menuRef}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full mt-2 w-72 z-50 rounded-2xl bg-[#1c1c1e]/95 backdrop-blur-xl border border-white/15 shadow-2xl p-3 text-white flex flex-col gap-2.5 animate-in fade-in zoom-in-95"
+        >
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40" />
+            <input
+              type="text"
+              placeholder="Search instruments..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#9ba4ff]/50 focus:bg-white/10 transition-all font-medium"
+            />
+          </div>
+
+          {/* Category Tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar">
+            {INSTRUMENT_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  category === cat
+                    ? 'bg-[#9ba4ff] text-[#131313] shadow-sm'
+                    : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Instrument List */}
+          <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+            {filteredInstruments.length === 0 ? (
+              <div className="py-4 text-center text-xs text-white/40 font-medium">No instruments found</div>
+            ) : (
+              filteredInstruments.map((inst) => {
+                const isSelected = inst === value;
+                const InstIcon = getInstrumentIcon(inst);
+                return (
+                  <button
+                    key={inst}
+                    type="button"
+                    onClick={() => {
+                      onSelect(inst as InstrumentName);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#9ba4ff]/20 text-[#9ba4ff] border border-[#9ba4ff]/30'
+                        : 'text-white/80 hover:text-white hover:bg-white/10 border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <InstIcon className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-[#9ba4ff]' : 'text-white/40'}`} />
+                      <span className="truncate">{formatInstrumentLabel(inst)}</span>
+                    </div>
+                    {isSelected && <Check className="h-3.5 w-3.5 text-[#9ba4ff] shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Default BPM & Duration for sketches
 const DEFAULT_BPM = 120;
@@ -145,6 +312,7 @@ export default function Studio() {
     }
   };
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [instrumentRange, setInstrumentRange] = useState(midiState.detectedRange);
   useEffect(() => {
     const interval = setInterval(() => {
@@ -155,43 +323,6 @@ export default function Studio() {
     return () => clearInterval(interval);
   }, [instrumentRange]);
 
-  const { minMidi, maxMidi } = useMemo(() => {
-    let songStart = 60;
-    let songEnd = 60;
-    if (notes.length > 0) {
-      songStart = Math.min(...notes.map((n) => n.midiNote));
-      songEnd = Math.max(...notes.map((n) => n.midiNote));
-    }
-
-    let start = 36;
-    let end = 96;
-
-    let k = 0;
-    if (songStart < start || songEnd > end) {
-      const shiftDown = Math.ceil((start - songStart) / 12);
-      const shiftUp = Math.ceil((songEnd - end) / 12);
-      
-      if (shiftDown > 0 && shiftUp <= 0) {
-        k = -shiftDown;
-      } else if (shiftUp > 0 && shiftDown <= 0) {
-        k = shiftUp;
-      } else {
-        const songCenter = (songStart + songEnd) / 2;
-        const instrumentCenter = (start + end) / 2;
-        k = Math.round((songCenter - instrumentCenter) / 12);
-      }
-    }
-
-    const minK = Math.ceil((21 - start) / 12);
-    const maxK = Math.floor((108 - end) / 12);
-    k = Math.max(minK, Math.min(maxK, k));
-
-    return {
-      minMidi: start + k * 12,
-      maxMidi: end + k * 12,
-    };
-  }, [notes]);
-  
   // History for Undo/Redo
   const [history, setHistory] = useState<{ notes: SongNote[]; tracks: Tracks }[]>([
     {
@@ -204,19 +335,202 @@ export default function Studio() {
   // Layout states
   const MIN_ZOOM = 16; // minimum px per 16th note
   const MAX_ZOOM = 160; // maximum px per 16th note
-  const KEY_WIDTH = 40;
-  const KEY_TOP_HEIGHT = 64;
-  // Distance (px) from the bottom of the scroll container to the playhead line.
-  // Increase this value to move the baseline higher, which makes the note visually
-  // touch the line closer to the moment the audio fires.
+  const KEY_TOP_HEIGHT = 150; // px height of piano keyboard (prominent & big)
   const PLAYHEAD_BOTTOM = 80;
   const [zoomY, setZoomY] = useState<number>(48);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(1000);
+
+  // Track container width changes dynamically (window resize, sidebar toggle)
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const updateWidth = () => {
+      if (el.clientWidth > 0) {
+        setContainerWidth(el.clientWidth);
+      }
+    };
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [sidebarOpen]);
+
+  // Real piano keyboard layout measurements (matching Play Mode structure & octave adaptation)
+  const studioMeasurements = useMemo(() => {
+    // 1. Calculate song note range in a single pass
+    let songStart = 60;
+    let songEnd = 72;
+    if (notes.length > 0) {
+      let minN = Infinity;
+      let maxN = -Infinity;
+      for (let i = 0; i < notes.length; i++) {
+        const n = notes[i].midiNote;
+        if (n < minN) minN = n;
+        if (n > maxN) maxN = n;
+      }
+      songStart = minN;
+      songEnd = maxN;
+    }
+
+    // 2. Play Mode getKeyboardRange logic: adapt octaves based on hardware MIDI + song range
+    let k = 0;
+    if (instrumentRange) {
+      const instStart = instrumentRange.start;
+      const instEnd = instrumentRange.end;
+
+      if (songStart < instStart || songEnd > instEnd) {
+        const shiftDown = Math.ceil((instStart - songStart) / 12);
+        const shiftUp = Math.ceil((songEnd - instEnd) / 12);
+
+        if (shiftDown > 0 && shiftUp <= 0) {
+          k = -shiftDown;
+        } else if (shiftUp > 0 && shiftDown <= 0) {
+          k = shiftUp;
+        } else {
+          const songCenter = (songStart + songEnd) / 2;
+          const instrumentCenter = (instStart + instEnd) / 2;
+          k = Math.round((songCenter - instrumentCenter) / 12);
+        }
+      }
+    }
+
+    let displayStart = songStart;
+    let displayEnd = songEnd;
+
+    if (instrumentRange) {
+      displayStart = Math.min(songStart, instrumentRange.start + k * 12);
+      displayEnd = Math.max(songEnd, instrumentRange.end + k * 12);
+    }
+
+    // Snap to nearest C octaves
+    let minM = Math.floor(displayStart / 12) * 12;
+    let maxM = Math.ceil(displayEnd / 12) * 12;
+
+    // Ensure minimum of 2 octaves (e.g. C4 to C6) if song is short, or 1 octave minimum
+    if (maxM - minM < 24) {
+      if (notes.length > 0) {
+        minM = Math.max(21, minM - 12);
+        maxM = Math.min(108, maxM + 12);
+      } else {
+        minM = 48; // C3
+        maxM = 84; // C6
+      }
+    }
+
+    const minMidi = Math.max(21, minM);
+    const maxMidi = Math.min(108, maxM);
+
+    // 3. Separate white and black key lists in a single loop
+    const whiteKeyNotes: number[] = [];
+    const blackKeyNotes: number[] = [];
+    for (let i = minMidi; i <= maxMidi; i++) {
+      if (isBlackKey(i)) {
+        blackKeyNotes.push(i);
+      } else {
+        whiteKeyNotes.push(i);
+      }
+    }
+    const whiteKeysCount = whiteKeyNotes.length;
+
+    // 4. Compute whiteWidth to engulf 100% of containerWidth
+    const availableW = Math.max(300, containerWidth);
+    const whiteWidth = availableW / Math.max(1, whiteKeysCount);
+    const blackWidth = whiteWidth * 0.58;
+    const offset = 2 / 3 - 0.5;
+    const blackOffsets: { [note: number]: number } = {
+      1: -offset,  // C#
+      3: +offset,  // D#
+      6: -offset,  // F#
+      8: 0,        // G#
+      10: +offset, // A#
+    };
+
+    const rawLanes: { [note: number]: { left: number; width: number } } = {};
+    let whiteNotes = 0;
+
+    for (let note = minMidi; note <= maxMidi; note++) {
+      if (isBlackKey(note)) {
+        const whiteMiddle = whiteWidth * whiteNotes;
+        const off = blackOffsets[note % 12] ?? 0;
+        const left = whiteMiddle - blackWidth / 2 - 2 + off * blackWidth;
+        rawLanes[note] = { left, width: blackWidth };
+      } else {
+        rawLanes[note] = { left: whiteWidth * whiteNotes, width: whiteWidth };
+        whiteNotes++;
+      }
+    }
+
+    const lanes: {
+      [midiNote: number]: {
+        left: number;
+        width: number;
+        noteLeft: number;
+        noteWidth: number;
+        isBlack: boolean;
+      };
+    } = {};
+
+    for (let note = minMidi; note <= maxMidi; note++) {
+      const isB = isBlackKey(note);
+      if (isB) {
+        const raw = rawLanes[note];
+        lanes[note] = {
+          left: raw.left,
+          width: raw.width,
+          noteLeft: raw.left,
+          noteWidth: raw.width,
+          isBlack: true,
+        };
+      } else {
+        const raw = rawLanes[note];
+        const leftBlack = rawLanes[note - 1];
+        const rightBlack = rawLanes[note + 1];
+
+        let posX = raw.left;
+        if (leftBlack && isBlackKey(note - 1)) {
+          posX = leftBlack.left + leftBlack.width;
+        }
+
+        let rightEdge = raw.left + raw.width;
+        if (rightBlack && isBlackKey(note + 1)) {
+          rightEdge = rightBlack.left;
+        }
+
+        const noteWidth = Math.max(4, rightEdge - posX);
+        lanes[note] = {
+          left: raw.left,
+          width: raw.width,
+          noteLeft: posX,
+          noteWidth,
+          isBlack: false,
+        };
+      }
+    }
+
+    return {
+      minMidi,
+      maxMidi,
+      whiteKeyNotes,
+      blackKeyNotes,
+      lanes,
+      whiteNotes,
+      whiteWidth,
+      blackWidth,
+      totalWidth: availableW,
+    };
+  }, [notes, instrumentRange, containerWidth]);
+
+  const { minMidi, maxMidi, whiteKeyNotes, blackKeyNotes } = studioMeasurements;
+
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey) {
       e.preventDefault();
-      // deltaY > 0 means zoom out, <0 zoom in
       setZoomY(prev => {
-        const step = -e.deltaY * 0.05; // adjust sensitivity
+        const step = -e.deltaY * 0.05;
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + step));
         return newZoom;
       });
@@ -229,8 +543,6 @@ export default function Studio() {
       pianoScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
     }
   }, []);
-
-  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Playback states
   const [isPlaying, setIsPlaying] = useState(false);
@@ -250,26 +562,26 @@ export default function Studio() {
   const scrollInitializedRef = useRef(false);
 
   // Set scroll position: center active notes horizontally, and align vertical scroll with the playhead.
-  // useLayoutEffect runs synchronously after DOM paint, so clientHeight is always valid.
   useLayoutEffect(() => {
     if (isLoading) return;
     const el = scrollContainerRef.current;
     if (!el || el.clientHeight === 0) return;
-    // When loading an existing song, defer until notes are actually in state
     if (id && notes.length === 0) return;
 
     // 1. Horizontal: Center the active notes pitch range on load or zoom
     if (notes.length > 0) {
       const minNote = Math.min(...notes.map((n) => n.midiNote));
       const maxNote = Math.max(...notes.map((n) => n.midiNote));
-      const targetMidi = (minNote + maxNote) / 2;
-      const centerX = (targetMidi - minMidi) * KEY_WIDTH + KEY_WIDTH / 2;
+      const targetMidi = Math.round((minNote + maxNote) / 2);
+      const lane = studioMeasurements.lanes[targetMidi];
+      const centerX = lane ? lane.noteLeft + lane.noteWidth / 2 : 400;
       const containerW = el.clientWidth || el.offsetWidth || 800;
       const hOffset = Math.max(0, centerX - containerW / 2);
       el.scrollLeft = hOffset;
       if (pianoScrollRef.current) pianoScrollRef.current.scrollLeft = hOffset;
     } else {
-      const hOffset = Math.max(0, (60 - minMidi - 2) * KEY_WIDTH);
+      const lane = studioMeasurements.lanes[60];
+      const hOffset = Math.max(0, (lane ? lane.left : 0) - 200);
       el.scrollLeft = hOffset;
       if (pianoScrollRef.current) pianoScrollRef.current.scrollLeft = hOffset;
     }
@@ -753,8 +1065,22 @@ export default function Studio() {
     } else {
       // Moving
       const newTime = Math.max(0, startTime + deltaTime);
-      const deltaKeys = Math.round(deltaX / KEY_WIDTH);
-      const newMidi = Math.min(maxMidi, Math.max(minMidi, startMidi + deltaKeys));
+      const startLane = studioMeasurements.lanes[startMidi];
+      const currentX = (startLane ? startLane.noteLeft : 0) + deltaX;
+      let closestMidi = startMidi;
+      let minDist = Infinity;
+      for (let m = minMidi; m <= maxMidi; m++) {
+        const lane = studioMeasurements.lanes[m];
+        if (lane) {
+          const laneCenter = lane.noteLeft + lane.noteWidth / 2;
+          const dist = Math.abs(currentX - laneCenter);
+          if (dist < minDist) {
+            minDist = dist;
+            closestMidi = m;
+          }
+        }
+      }
+      const newMidi = closestMidi;
       
       // Play audio feedback on pitch change
       if (newMidi !== note.midiNote) {
@@ -1017,34 +1343,37 @@ export default function Studio() {
     setHistoryIndex(0);
   };
 
-  // Piano roll vertical scroll keyboard setup
-  const pianoKeys = useMemo(() => {
-    const keys = [];
-    for (let m = minMidi; m <= maxMidi; m++) {
-      keys.push(m);
-    }
-    return keys;
-  }, [minMidi, maxMidi]);
-
-  const totalGridWidth = useMemo(() => pianoKeys.length * KEY_WIDTH, [pianoKeys.length]);
+  const totalGridWidth = useMemo(() => studioMeasurements.totalWidth, [studioMeasurements.totalWidth]);
   const totalGridHeight = useMemo(() => {
     const totalSubdivisions = Math.ceil(totalDuration * (bpm / 60) * 4);
     return totalSubdivisions * zoomY + PLAYHEAD_BOTTOM;
   }, [totalDuration, bpm, zoomY]);
 
-  // CSS variables for background repeating grid lines
+  // CSS variables for background repeating grid lines & vertical lanes matching note thickness
   const gridBackgroundStyle = useMemo(() => {
+    const laneStops: string[] = [];
+    for (let m = minMidi; m <= maxMidi; m++) {
+      const lane = studioMeasurements.lanes[m];
+      if (!lane) continue;
+      const isBlack = lane.isBlack;
+      const color = isBlack ? 'rgba(0, 0, 0, 0.45)' : 'rgba(255, 255, 255, 0.025)';
+      const startX = isBlack ? lane.left : lane.noteLeft;
+      const endX = isBlack ? lane.left + lane.width : lane.noteLeft + lane.noteWidth;
+      laneStops.push(`rgba(255, 255, 255, 0.05) ${startX}px, ${color} ${startX + 1}px, ${color} ${endX - 1}px, rgba(255, 255, 255, 0.05) ${endX}px`);
+    }
+    const lanesGradient = `linear-gradient(90deg, ${laneStops.join(', ')})`;
+
     return {
       "--zoomY": `${zoomY}px`,
       backgroundImage: `
         repeating-linear-gradient(180deg, rgba(229, 226, 225, 0.03) 0px, rgba(229, 226, 225, 0.03) 1px, transparent 1px, transparent var(--zoomY)),
         repeating-linear-gradient(180deg, rgba(229, 226, 225, 0.08) 0px, rgba(229, 226, 225, 0.08) 1px, transparent 1px, transparent calc(var(--zoomY) * 4)),
-        repeating-linear-gradient(180deg, rgba(208, 188, 255, 0.2) 0px, rgba(208, 188, 255, 0.2) 2px, transparent 2px, transparent calc(var(--zoomY) * 16)),
-        repeating-linear-gradient(90deg, rgba(229, 226, 225, 0.03) 0px, rgba(229, 226, 225, 0.03) 1px, transparent 1px, transparent ${KEY_WIDTH}px)
+        repeating-linear-gradient(180deg, rgba(208, 188, 255, 0.25) 0px, rgba(208, 188, 255, 0.25) 2px, transparent 2px, transparent calc(var(--zoomY) * 16)),
+        ${lanesGradient}
       `,
-      backgroundSize: `${KEY_WIDTH}px auto`,
+      backgroundSize: `100% auto, 100% auto, 100% auto, ${studioMeasurements.totalWidth}px auto`,
     } as React.CSSProperties;
-  }, [zoomY]);
+  }, [zoomY, minMidi, maxMidi, studioMeasurements]);
 
   // Selected note details
   const selectedNote = selectedNoteIndex !== null ? notes[selectedNoteIndex] : null;
@@ -1060,15 +1389,16 @@ export default function Studio() {
       }}
       className="bg-[#131313] text-[#e5e2e1] select-none font-sans"
     >
-      {/* Studio Header (Loomo look-alike) */}
+      {/* Studio Header (Optimized Space Layout) */}
       <header className="flex h-20 items-center justify-between border-b border-[#353534]/50 bg-[#131313] px-6 shadow-md z-30">
-        <div className="flex items-center gap-4">
+        {/* Left: Back + Loomo Logo + Song Title */}
+        <div className="flex items-center gap-4 shrink-0">
           <button
             onClick={() => {
               stopPlayback();
               navigate(-1);
             }}
-            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 border border-white/10 text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all text-[#9ba4ff]"
+            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 border border-white/10 text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all text-[#9ba4ff] cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
@@ -1085,106 +1415,111 @@ export default function Studio() {
               type="text"
               value={songName}
               onChange={(e) => setSongName(e.target.value)}
-              className="bg-transparent text-xl font-bold tracking-tight text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#9ba4ff] transition-all"
-              style={{ width: `${Math.max(12, songName.length + 1)}ch`, minWidth: '150px', maxWidth: '400px' }}
+              className="bg-transparent text-xl font-bold tracking-tight text-white focus:outline-none focus:border-b focus:border-[#9ba4ff] transition-all"
+              style={{ width: `${Math.max(12, songName.length + 1)}ch`, minWidth: '150px', maxWidth: '320px' }}
             />
           </div>
         </div>
 
-        {/* Playback Controls & BPM */}
-        <div className="flex items-center gap-6 rounded-2xl glass-card px-6 py-2 border border-[#9ba4ff]/10">
-          <div className="flex items-center gap-2">
+        {/* Center-Left Tightly Packed Playback Controls & BPM Floating Island */}
+        <div className="flex items-center gap-5 rounded-2xl bg-white/5 backdrop-blur-md px-5 py-2 border border-white/10 shadow-lg shrink-0 ml-4">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => seekTo(0)}
               title="Skip to Beginning"
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-[#e5e2e1]/80 hover:text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-white/80 hover:text-white cursor-pointer"
             >
               <SkipBack className="h-4 w-4" />
             </button>
             <button
               onClick={togglePlayback}
-              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
-                isPlaying ? "bg-[#9ba4ff] text-[#131313]" : "bg-white/5 hover:bg-white/10"
+              className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all cursor-pointer ${
+                isPlaying ? "bg-[#9ba4ff] text-[#131313]" : "bg-white/5 hover:bg-white/10 text-white"
               }`}
             >
               {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
             </button>
             <button
               onClick={stopPlayback}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all"
+              className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-white/80 hover:text-white cursor-pointer"
             >
               <Square className="h-4 w-4 fill-current" />
             </button>
             <button
               onClick={() => seekTo(totalDuration)}
               title="Skip to End"
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-[#e5e2e1]/80 hover:text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-all text-white/80 hover:text-white cursor-pointer"
             >
               <SkipForward className="h-4 w-4" />
             </button>
             <button
               onClick={() => setIsLooping(!isLooping)}
               title="Toggle Loop"
-              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
-                isLooping ? "bg-[#9ba4ff]/20 text-[#9ba4ff] border border-[#9ba4ff]/30" : "bg-white/5 hover:bg-white/10 text-[#e5e2e1]/80"
+              className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all cursor-pointer ${
+                isLooping ? "bg-[#9ba4ff]/20 text-[#9ba4ff] border border-[#9ba4ff]/30" : "bg-white/5 hover:bg-white/10 text-white/80"
               }`}
             >
               <Repeat className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="h-6 w-[1px] bg-[#353534]" />
+          <div className="h-5 w-[1px] bg-white/15" />
 
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-[#cbc3d7]">Tempo:</span>
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className="text-white/60 font-medium">Tempo:</span>
             <input
               type="number"
               value={bpm}
               min={40}
               max={280}
               onChange={(e) => setBpm(Number(e.target.value))}
-              className="w-14 rounded-lg bg-white/5 py-1 text-center font-semibold text-[#9ba4ff] focus:outline-none border border-white/5"
+              className="w-14 rounded-lg bg-white/5 py-1 text-center font-bold text-[#9ba4ff] focus:outline-none border border-white/10 text-sm"
             />
-            <span className="text-[#cbc3d7] font-light">BPM</span>
+            <span className="text-white/60 font-normal text-xs">BPM</span>
           </div>
 
-          <div className="h-6 w-[1px] bg-[#353534]" />
+          <div className="h-5 w-[1px] bg-white/15" />
 
-          <div className="text-xs font-mono tabular-nums text-white/60">
+          <div className="text-sm font-mono font-semibold tabular-nums text-white/90">
             {playbackTime.toFixed(2)}s / {totalDuration}s
           </div>
         </div>
 
-        {/* Editor Save / History / Download */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 rounded-xl bg-white/5 p-1 border border-white/5">
+        {/* Wide Center-Right Expanse (Reserved for Visual EQ & Synth Panel) */}
+        <div className="flex-1 min-w-[120px]" />
+
+        {/* Far Right Compressed Action Buttons */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-0.5 rounded-xl bg-white/5 p-1 border border-white/10">
             <button
               onClick={handleUndo}
               disabled={historyIndex <= 0}
-              className="p-2 rounded-lg hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              title="Undo"
+              className="p-1.5 rounded-lg hover:bg-white/10 text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
             >
-              <Undo2 className="h-4 w-4 text-[#e5e2e1]" />
+              <Undo2 className="h-4 w-4" />
             </button>
             <button
               onClick={handleRedo}
               disabled={historyIndex >= history.length - 1}
-              className="p-2 rounded-lg hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              title="Redo"
+              className="p-1.5 rounded-lg hover:bg-white/10 text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
             >
-              <Redo2 className="h-4 w-4 text-[#e5e2e1]" />
+              <Redo2 className="h-4 w-4" />
             </button>
           </div>
 
           <button
             onClick={handleDownloadMIDI}
-            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 hover:bg-white/10 transition-all text-sm font-medium border border-white/15"
+            className="flex items-center gap-2 rounded-xl bg-white/5 px-3.5 py-2 hover:bg-white/10 transition-all text-sm font-semibold border border-white/15 text-white cursor-pointer"
           >
             <Download className="h-4 w-4 text-[#cbc3d7]" />
-            <span className="hidden sm:inline">Export</span>
+            <span className="hidden lg:inline">Export</span>
           </button>
 
           <button
             onClick={handleSaveToLibrary}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 transition-all text-sm font-medium border ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 transition-all text-sm font-semibold border cursor-pointer ${
               isSavedToLibrary
                 ? "bg-emerald-600/20 border-emerald-500/30 text-emerald-400 cursor-default"
                 : "bg-white/5 border-white/15 hover:bg-white/10 text-white"
@@ -1197,9 +1532,9 @@ export default function Studio() {
 
           <button
             onClick={() => handleSaveAndPractice()}
-            className="flex items-center gap-2 rounded-xl bg-[#6c79f0] px-5 py-2 text-white font-semibold shadow-[0_0_20px_rgba(108,121,240,0.4)] hover:shadow-[0_0_25px_rgba(108,121,240,0.6)] hover:bg-[#8591ff] active:scale-95 transition-all text-sm"
+            className="flex items-center gap-2 rounded-xl bg-[#6c79f0] px-5 py-2 text-white font-bold shadow-[0_0_20px_rgba(108,121,240,0.4)] hover:shadow-[0_0_25px_rgba(108,121,240,0.6)] hover:bg-[#8591ff] active:scale-95 transition-all text-sm cursor-pointer"
           >
-            <Play className="h-4 w-4" />
+            <Play className="h-4 w-4 fill-current" />
             <span>Play</span>
           </button>
         </div>
@@ -1216,28 +1551,28 @@ export default function Studio() {
         }}
       >
         
-        {/* Left Track Manager (Loomo Theme) */}
+        {/* Left Track Manager (Modernized Instrument Sidebar) */}
         <AnimatePresence initial={false}>
           {sidebarOpen && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 280, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              className="flex h-full flex-col border-r border-[#353534]/50 bg-[#171717] overflow-hidden select-none"
+              className="flex h-full flex-col border-r border-[#353534]/50 bg-[#171717] overflow-hidden select-none z-30"
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[#353534]/30">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#cbc3d7]">Tracks</span>
+              <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#353534]/40">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">Tracks</span>
                 <button
                   onClick={addTrack}
-                  className="flex items-center gap-1 text-[11px] font-bold text-[#9ba4ff] hover:text-[#8591ff] px-2 py-1 bg-[#9ba4ff]/5 rounded-lg border border-[#9ba4ff]/10 hover:bg-[#9ba4ff]/10"
+                  className="flex items-center gap-1.5 text-xs font-bold text-[#9ba4ff] hover:text-[#8591ff] px-2.5 py-1 bg-[#9ba4ff]/10 rounded-lg border border-[#9ba4ff]/20 hover:bg-[#9ba4ff]/20 cursor-pointer transition-all"
                 >
-                  <Plus className="h-3 w-3" />
-                  Add
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add</span>
                 </button>
               </div>
 
               {/* Scrollable Track list */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {Object.entries(tracks).map(([idStr, track]) => {
                   const trackId = Number(idStr);
                   const isActive = activeTrack === trackId;
@@ -1248,19 +1583,19 @@ export default function Studio() {
                     <div
                       key={trackId}
                       onClick={() => setActiveTrack(trackId)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                         isActive
-                          ? "bg-[#202020] border-[#9ba4ff]/30 shadow-[0_0_15px_rgba(155,164,255,0.05)]"
-                          : "bg-white/3 border-white/5 hover:bg-white/5"
+                          ? "bg-[#222226] border-[#9ba4ff]/40 shadow-[0_0_20px_rgba(155,164,255,0.08)]"
+                          : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10"
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-3">
                         <input
                           type="text"
                           value={track.name || ""}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => updateTrackName(trackId, e.target.value)}
-                          className="bg-transparent text-sm font-semibold text-[#e5e2e1] focus:outline-none focus:border-b focus:border-[#9ba4ff] w-3/4"
+                          className="bg-transparent text-sm font-bold text-white focus:outline-none focus:border-b focus:border-[#9ba4ff] w-3/4 tracking-wide"
                         />
                         {Object.keys(tracks).length > 1 && (
                           <button
@@ -1268,93 +1603,88 @@ export default function Studio() {
                               e.stopPropagation();
                               deleteTrack(trackId);
                             }}
-                            className="p-1 rounded-md text-red-400/75 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="p-1 rounded-lg text-red-400/75 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        {/* Instrument selection drop down */}
-                        <select
-                          value={track.instrument || "acoustic_grand_piano"}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => updateTrackInstrument(trackId, e.target.value as InstrumentName)}
-                          className="bg-[#292929] border border-white/5 rounded-lg text-xs text-[#cbc3d7] px-2 py-1 outline-none w-3/5"
-                        >
-                          {gmInstruments.map((inst) => (
-                            <option key={inst} value={inst}>
-                              {inst.replace(/_/g, " ")}
-                            </option>
-                          ))}
-                        </select>
+                      {/* Modernized Instrument Pill Component */}
+                      <div className="mb-3">
+                        <InstrumentPillSelect
+                          value={(track.instrument as InstrumentName) || "acoustic_grand_piano"}
+                          onSelect={(inst) => updateTrackInstrument(trackId, inst)}
+                        />
+                      </div>
 
-                        {/* Mute/Solo button controllers */}
-                        <div className="flex items-center gap-1">
+                      {/* Mute/Solo/Practice controls */}
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleMute(trackId);
                             }}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
                               isMuted
                                 ? "bg-red-500/20 text-red-400 border-red-500/30"
                                 : "bg-white/5 text-white/50 border-white/10 hover:text-white"
                             }`}
                           >
-                            M
+                            Mute
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleSolo(trackId);
                             }}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
                               isSolo
                                 ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
                                 : "bg-white/5 text-white/50 border-white/10 hover:text-white"
                             }`}
                           >
-                            S
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSaveAndPractice(trackId);
-                            }}
-                            title="Practice this Track"
-                            className="p-1 rounded bg-white/5 text-white/50 border border-white/10 hover:text-white hover:bg-white/10 transition-colors"
-                          >
-                            <Target className="h-3 w-3" />
+                            Solo
                           </button>
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSaveAndPractice(trackId);
+                          }}
+                          title="Practice this Track"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-xs font-semibold text-white/60 border border-white/10 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                          <Target className="h-3.5 w-3.5 text-[#9ba4ff]" />
+                          <span>Practice</span>
+                        </button>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Sketch template presets */}
+              {/* Preset sketch templates */}
               {notes.length === 0 && (
                 <div className="p-4 border-t border-[#353534]/30 space-y-3 bg-[#131313]/50">
-                  <span className="text-[10px] uppercase font-bold text-[#cbc3d7]/60 tracking-wider">Presets Sketches</span>
+                  <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider">Presets Sketches</span>
                   <div className="grid grid-cols-3 gap-1">
                     <button
                       onClick={() => applyTemplate("simple")}
-                      className="text-[10px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-1.5 font-medium text-center transition-colors"
+                      className="text-[10px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-1.5 font-semibold text-center transition-colors cursor-pointer text-white"
                     >
                       Solo Piano
                     </button>
                     <button
                       onClick={() => applyTemplate("duet")}
-                      className="text-[10px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-1.5 font-medium text-center transition-colors"
+                      className="text-[10px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-1.5 font-semibold text-center transition-colors cursor-pointer text-white"
                     >
                       Synth/Bass
                     </button>
                     <button
                       onClick={() => applyTemplate("sketch")}
-                      className="text-[10px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-1.5 font-medium text-center transition-colors"
+                      className="text-[10px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-1.5 font-semibold text-center transition-colors cursor-pointer text-white"
                     >
                       EP/Guitar
                     </button>
@@ -1374,24 +1704,24 @@ export default function Studio() {
           <SlidersHorizontal className="h-2 w-2 rotate-90" />
         </button>
 
-        {/* Right panel — position:relative so children can be absolutely placed */}
-        <div style={{ position: 'relative', flex: 1, overflow: 'hidden', background: '#1a1a1a' }}>
+        {/* Right panel — timeline + grid + piano */}
+        <div ref={containerRef} style={{ position: 'relative', flex: 1, overflow: 'hidden', background: '#1a1a1a' }}>
 
           {/* Timeline bar — pinned to top */}
           <div
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 32 }}
-            className="border-b border-[#353534]/30 bg-[#131313] flex items-center justify-between px-4 text-xs select-none"
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 36 }}
+            className="border-b border-[#353534]/50 bg-[#131313] flex items-center justify-between px-5 text-xs font-semibold select-none z-20"
           >
-            <span className="text-[#cbc3d7]/60 text-[10px] uppercase font-semibold">Timeline</span>
+            <span className="text-white/70 text-xs font-bold uppercase tracking-wider">Timeline</span>
             <div className="flex items-center gap-3">
-              <span className="text-[#cbc3d7]">Zoom:</span>
-              <div className="flex rounded-md bg-white/5 p-0.5 border border-white/5">
+              <span className="text-white/70 font-medium">Zoom:</span>
+              <div className="flex rounded-lg bg-white/5 p-0.5 border border-white/10">
                 {[32, 48, 64, 96].map((z) => (
                   <button
                     key={z}
                     onClick={() => setZoomY(z)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      zoomY === z ? "bg-[#9ba4ff] text-[#131313]" : "text-white/60 hover:text-white"
+                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                      zoomY === z ? "bg-[#9ba4ff] text-[#131313] shadow-sm" : "text-white/60 hover:text-white"
                     }`}
                   >
                     {z === 32 ? "S" : z === 48 ? "M" : z === 64 ? "L" : "XL"}
@@ -1401,18 +1731,18 @@ export default function Studio() {
             </div>
           </div>
 
-          {/* Grid viewport — fills space between timeline and piano (+ optional note details) */}
+          {/* Grid viewport */}
           <div
             style={{
               position: 'absolute',
-              top: 32,
+              top: 36,
               bottom: selectedNote ? KEY_TOP_HEIGHT + 80 : KEY_TOP_HEIGHT,
               left: 0,
               right: 0,
               overflow: 'hidden',
             }}
           >
-            {/* Playhead line — always 32px from the bottom of this viewport */}
+            {/* Playhead line */}
             <div
               className="pointer-events-none absolute left-0 right-0 h-[2px] bg-[#9ba4ff] shadow-[0_0_8px_#9ba4ff] z-50"
               style={{ bottom: PLAYHEAD_BOTTOM }}
@@ -1425,7 +1755,7 @@ export default function Studio() {
               onWheel={handleWheel}
               onScroll={handleGridScroll}
             >
-              {/* Grid canvas */}
+              {/* Grid canvas with alternating black/white key vertical lanes */}
               <div
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -1433,7 +1763,29 @@ export default function Studio() {
                   const clickY = e.clientY - rect.top;
                   const gridH = Math.ceil(totalDuration * (bpm / 60) * 4) * zoomY;
                   const timeSubdivision = Math.floor((gridH - clickY) / zoomY);
-                  const noteMidi = Math.min(maxMidi, Math.max(minMidi, minMidi + Math.floor(clickX / KEY_WIDTH)));
+                  
+                  let noteMidi = minMidi;
+                  // Check black key lanes first (since they overlap on top)
+                  for (let m = maxMidi; m >= minMidi; m--) {
+                    const lane = studioMeasurements.lanes[m];
+                    if (lane && lane.isBlack) {
+                      if (clickX >= lane.noteLeft && clickX <= lane.noteLeft + lane.noteWidth) {
+                        noteMidi = m;
+                        break;
+                      }
+                    }
+                  }
+                  if (noteMidi === minMidi) {
+                    for (let m = minMidi; m <= maxMidi; m++) {
+                      const lane = studioMeasurements.lanes[m];
+                      if (lane && !lane.isBlack) {
+                        if (clickX >= lane.noteLeft && clickX <= lane.noteLeft + lane.noteWidth) {
+                          noteMidi = m;
+                          break;
+                        }
+                      }
+                    }
+                  }
                   addNoteAt(noteMidi, timeSubdivision);
                 }}
                 className="relative cursor-crosshair select-none bg-[#131313]"
@@ -1448,10 +1800,15 @@ export default function Studio() {
                   const isVisible = hasSolo ? isSolo : !isMuted;
                   if (!isVisible) return null;
 
-                  const left = (note.midiNote - minMidi) * KEY_WIDTH;
+                  const lane = studioMeasurements.lanes[note.midiNote];
+                  const left = lane ? (lane.isBlack ? lane.left + 2 : lane.noteLeft + 1) : 0;
+                  const width = lane ? (lane.isBlack ? lane.width - 4 : lane.noteWidth - 2) : 36;
                   const top = timeToY(note.time + note.duration);
-                  const height = Math.max(20, durationToHeight(note.duration));
+                  const height = Math.max(22, durationToHeight(note.duration));
                   const velocityFactor = (note.velocity || 80) / 127;
+
+                  const noteName = getNoteName(note.midiNote);
+                  const badgeFontSize = Math.max(10, Math.min(18, Math.floor(width * 0.52)));
 
                   return (
                     <div
@@ -1461,35 +1818,50 @@ export default function Studio() {
                       onDoubleClick={(e) => handleNoteDoubleClick(e, index)}
                       onMouseEnter={() => setHoveredNoteIndex(index)}
                       onMouseLeave={() => setHoveredNoteIndex(null)}
-                      className={`absolute rounded-xl border cursor-move select-none flex flex-col justify-between px-1 transition-shadow ${
+                      className={`absolute rounded-2xl border cursor-move select-none transition-shadow overflow-hidden ${
                         isSelected
-                          ? 'border-white bg-[#9ba4ff] text-[#131313] shadow-[0_0_15px_rgba(155,164,255,0.9)] z-10'
+                          ? 'border-white bg-[#9ba4ff] text-[#131313] shadow-[0_0_20px_rgba(155,164,255,0.9)] z-10'
                           : isNoteActive
-                            ? 'border-[#9ba4ff]/40 bg-[#6c79f0]/80 text-white'
-                            : 'border-white/10 bg-white/20 text-white/70'
+                            ? 'border-[#9ba4ff]/60 bg-[#6c79f0] text-white shadow-[0_0_12px_rgba(108,121,240,0.4)]'
+                            : 'border-white/20 bg-white/30 text-white'
                       }`}
                       style={{
                         left: `${left}px`,
-                        width: `${KEY_WIDTH}px`,
+                        width: `${width}px`,
                         top: `${top}px`,
                         height: `${height}px`,
-                        opacity: isSelected ? 1 : 0.4 + velocityFactor * 0.6,
+                        opacity: isSelected ? 1 : 0.5 + velocityFactor * 0.5,
                       }}
                     >
                       {hoveredNoteIndex === index && (
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-black border border-white/20 rounded-lg text-sm font-black text-white whitespace-nowrap shadow-xl pointer-events-none">
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-30 px-2.5 py-0.5 bg-black border border-white/20 rounded-lg text-xs font-black text-white whitespace-nowrap shadow-xl pointer-events-none">
                           {note.finger ?? '—'}
                         </div>
                       )}
-                      <span className="text-[14px] font-black truncate leading-none mt-1.5 text-center w-full block">{getNoteName(note.midiNote)}</span>
+                      
+                      {/* Perfectly centered note text */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-0.5 z-0">
+                        <span
+                          style={{ fontSize: `${badgeFontSize}px` }}
+                          className={`font-black text-center leading-none tracking-wide whitespace-nowrap overflow-hidden max-w-full ${
+                            isSelected
+                              ? 'text-[#131313] drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)]'
+                              : 'text-white drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.95)]'
+                          }`}
+                        >
+                          {noteName}
+                        </span>
+                      </div>
+
                       {isSelected && note.finger !== undefined && (
-                        <span className="text-[13px] font-black self-end bg-black/40 px-2 py-0.5 rounded border border-white/10 select-none mb-1.5 leading-none">
+                        <span className="absolute bottom-1 right-1 z-10 text-[11px] font-black bg-black/70 px-1.5 py-0.5 rounded-full border border-white/20 leading-none">
                           {note.finger}
                         </span>
                       )}
+
                       <div
                         onMouseDown={(e) => handleNoteMouseDown(e, index, true)}
-                        className="absolute top-0 left-0 h-2 w-full cursor-ns-resize rounded-t-xl hover:bg-white/30"
+                        className="absolute top-0 left-0 h-2.5 w-full cursor-ns-resize hover:bg-white/30 z-10"
                       />
                     </div>
                   );
@@ -1498,20 +1870,20 @@ export default function Studio() {
             </div>
           </div>
 
-          {/* Note details panel — sits just above piano when a note is selected */}
+          {/* Note details panel */}
           {selectedNote && (
             <div
               style={{ position: 'absolute', bottom: KEY_TOP_HEIGHT, left: 0, right: 0, height: 80 }}
               className="bg-[#171717] border-t border-[#353534]/50 px-6 flex items-center justify-between z-20"
             >
               <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#cbc3d7]">Pitch:</span>
-                  <span className="text-sm font-bold text-[#9ba4ff]">{getNoteName(selectedNote.midiNote)}</span>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-[#cbc3d7]/70 font-medium">Pitch:</span>
+                  <span className="text-base font-bold text-[#9ba4ff]">{getNoteName(selectedNote.midiNote)}</span>
                 </div>
                 <div className="h-6 w-[1px] bg-[#353534]" />
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-[#cbc3d7]">Velocity:</span>
+                <div className="flex items-center gap-3 text-sm font-semibold">
+                  <span className="text-[#cbc3d7]/70 font-medium">Velocity:</span>
                   <input
                     type="range" min={1} max={127}
                     value={selectedNote.velocity || 80}
@@ -1523,64 +1895,87 @@ export default function Studio() {
                     }}
                     className="w-32 accent-[#9ba4ff] cursor-pointer"
                   />
-                  <span className="text-sm font-mono text-[#9ba4ff] w-6">{selectedNote.velocity || 80}</span>
+                  <span className="text-sm font-mono font-bold text-[#9ba4ff] w-6">{selectedNote.velocity || 80}</span>
                 </div>
                 <div className="h-6 w-[1px] bg-[#353534]" />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#cbc3d7]">Duration:</span>
-                  <span className="text-sm font-mono text-[#9ba4ff]">{selectedNote.duration.toFixed(2)}s</span>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-[#cbc3d7]/70 font-medium">Duration:</span>
+                  <span className="text-sm font-mono font-bold text-[#9ba4ff]">{selectedNote.duration.toFixed(2)}s</span>
                 </div>
               </div>
               <button
                 onClick={() => deleteNote(selectedNoteIndex!)}
-                className="flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl px-4 py-2 border border-red-500/20 text-xs font-semibold active:scale-95 transition-all"
+                className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl px-4 py-2 border border-red-500/20 text-xs font-bold active:scale-95 transition-all cursor-pointer"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete Note
+                <Trash2 className="h-4 w-4" />
+                <span>Delete Note</span>
               </button>
             </div>
           )}
 
-          {/* Piano keys — always pinned to the very bottom */}
+          {/* Piano keys — pinned to bottom, matching Play Mode structure */}
           <div
             style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: KEY_TOP_HEIGHT }}
-            className="overflow-hidden border-t border-[#353534] bg-[#1e1e1e]"
+            className="overflow-hidden border-t border-[#353534] bg-[#1a1a1e]"
             ref={pianoScrollRef}
           >
-            <div className="flex" style={{ width: `${totalGridWidth}px`, height: '100%' }}>
-              {pianoKeys.map((key) => {
-                const isBlack = isBlackKey(key);
+            <div className="relative" style={{ width: `${studioMeasurements.totalWidth}px`, height: '100%' }}>
+              {/* White keys rendered first */}
+              {whiteKeyNotes.map((key) => {
+                const lane = studioMeasurements.lanes[key];
+                if (!lane) return null;
+                const name = getNoteName(key);
+                const isC = name.startsWith('C') && !name.includes('#');
+                const keyFontSize = Math.max(9, Math.min(isC ? 20 : 16, Math.floor(lane.width * 0.42)));
                 return (
                   <div
                     key={key}
                     onMouseDown={() => handleKeyMouseDown(key)}
                     onMouseUp={() => handleKeyMouseUp(key)}
                     onMouseLeave={() => handleKeyMouseUp(key)}
-                    className={`relative flex h-full flex-col justify-end pb-1.5 px-0.5 cursor-pointer transition-colors active:bg-[#a078ff]/30 ${
-                      isBlack
-                        ? 'bg-[#121212] border-r border-black/45 shadow-[inset_0_-8px_16px_rgba(255,255,255,0.01),inset_0_1px_2px_rgba(0,0,0,0.85)]'
-                        : 'bg-[#FAF9F6] border-r border-[#d4cfc5]/35 shadow-[inset_0_-6px_12px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.9)]'
-                    }`}
-                    style={{ minWidth: `${KEY_WIDTH}px`, width: `${KEY_WIDTH}px` }}
+                    className="absolute top-0 flex flex-col justify-end pb-3 px-1 cursor-pointer transition-all active:bg-[#e0d6ff] rounded-b-xl border-r border-[#d4cfc5]/40 bg-gradient-to-b from-[#ffffff] via-[#faf8f2] to-[#e6e2d3] shadow-[inset_0_-6px_12px_rgba(0,0,0,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] select-none"
+                    style={{
+                      left: `${lane.left}px`,
+                      width: `${lane.width}px`,
+                      height: '100%',
+                    }}
                   >
                     <span
-                      className={`font-mono text-center w-full uppercase flex items-baseline justify-center ${
-                        isBlack ? 'text-[#FAF9F6]/25' : 'text-[#131313]/40'
-                      }`}
+                      style={{ fontSize: `${keyFontSize}px` }}
+                      className={`font-black text-center w-full uppercase tracking-tight whitespace-nowrap overflow-hidden ${isC ? 'text-[#131313]' : 'text-[#131313]'}`}
                     >
-                      {(() => {
-                        const name = getNoteName(key);
-                        if (isBlack && name.includes('#')) {
-                          const parts = name.split('#');
-                          return (
-                            <>
-                              <span className="text-[10px] font-bold">{parts[0]}</span>
-                              <span className="text-[7px] font-normal">#{parts[1]}</span>
-                            </>
-                          );
-                        }
-                        return <span className="text-[8.5px] font-medium tracking-tighter">{name}</span>;
-                      })()}
+                      {isC ? name : name.replace(/\d+/, '')}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {/* Black keys rendered on top with note labels */}
+              {blackKeyNotes.map((key) => {
+                const lane = studioMeasurements.lanes[key];
+                if (!lane) return null;
+                const blackHeight = Math.round(KEY_TOP_HEIGHT * 0.65);
+                const name = getNoteName(key);
+                const isCSharp = name.startsWith('C#');
+                const keyFontSize = Math.max(8, Math.min(isCSharp ? 14 : 12, Math.floor(lane.width * 0.42)));
+                return (
+                  <div
+                    key={key}
+                    onMouseDown={() => handleKeyMouseDown(key)}
+                    onMouseUp={() => handleKeyMouseUp(key)}
+                    onMouseLeave={() => handleKeyMouseUp(key)}
+                    className="absolute top-0 cursor-pointer rounded-b-lg border-x border-b border-black/90 bg-gradient-to-b from-[#3a3a3a] via-[#1a1a1a] to-[#080808] shadow-[0_8px_16px_rgba(0,0,0,0.6),inset_0_-4px_8px_rgba(255,255,255,0.12)] active:bg-[#505055] transition-all z-10 select-none flex flex-col justify-end pb-2 items-center px-0.5"
+                    style={{
+                      left: `${lane.left}px`,
+                      width: `${lane.width}px`,
+                      height: `${blackHeight}px`,
+                    }}
+                  >
+                    <span
+                      style={{ fontSize: `${keyFontSize}px` }}
+                      className={`font-black text-center w-full uppercase tracking-tighter whitespace-nowrap overflow-hidden ${isCSharp ? 'text-white' : 'text-white/95'}`}
+                    >
+                      {isCSharp ? name : name.replace(/\d+/, '')}
                     </span>
                   </div>
                 );

@@ -1,30 +1,48 @@
-import { InstrumentName, SoundFont } from './types'
-import { parseMidiJsSoundfont } from './utils'
+import * as Tone from 'tone'
+import { getInstrumentSampleMap, InstrumentName } from './instruments'
 
-export const soundfonts: { [key in InstrumentName]?: SoundFont } = {}
-const downloading: { [key in InstrumentName]?: Promise<void> } = {}
+export const samplers: { [key in InstrumentName]?: Tone.Sampler | Tone.PolySynth } = {}
+const downloading: { [key in InstrumentName]?: Promise<Tone.Sampler | Tone.PolySynth> } = {}
 
-export async function loadInstrument(instrument: InstrumentName) {
-  // Already downloaded.
-  if (soundfonts[instrument]) {
-    return Promise.resolve()
+export async function loadInstrument(
+  instrument: InstrumentName,
+): Promise<Tone.Sampler | Tone.PolySynth> {
+  // Already loaded
+  if (samplers[instrument]) {
+    return samplers[instrument]!
   }
-  // In-progress already.
+  // Load in-progress
   if (downloading[instrument]) {
-    return downloading[instrument]
+    return downloading[instrument]!
   }
 
-  // Original link:https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/${instrument}-mp3.js
-  const sfFetch = fetch(`/soundfonts/FluidR3_GM/${instrument}-mp3.js`)
+  const sampleMap = getInstrumentSampleMap(instrument)
 
-  let doneDownloadingRes: any
-  downloading[instrument] = new Promise((res) => (doneDownloadingRes = res))
+  const loadPromise = new Promise<Tone.Sampler | Tone.PolySynth>((resolve) => {
+    const sampler = new Tone.Sampler({
+      urls: sampleMap,
+      onload: () => {
+        resolve(sampler)
+      },
+      onerror: (err) => {
+        console.warn(`Error loading samples for ${instrument}, fallback engaged.`, err)
+        resolve(sampler)
+      },
+    })
+  })
+
+  downloading[instrument] = loadPromise
+
   try {
-    let sf = await parseMidiJsSoundfont(await (await sfFetch).text())
-    soundfonts[instrument] = sf
+    const loadedSampler = await loadPromise
+    samplers[instrument] = loadedSampler
     delete downloading[instrument]
-    doneDownloadingRes()
+    return loadedSampler
   } catch (err) {
-    console.error(`Error fetching soundfont for: ${instrument}`, err)
+    console.error(`Failed loading sampler for ${instrument}, using PolySynth fallback:`, err)
+    const polySynth = new Tone.PolySynth(Tone.Synth)
+    samplers[instrument] = polySynth
+    delete downloading[instrument]
+    return polySynth
   }
 }

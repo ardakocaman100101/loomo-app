@@ -325,7 +325,9 @@ export class Player {
   }
 
   async setTrackInstrument(track: number | string, instrument: InstrumentName) {
+    const existingVol = (this.synths[+track] as any)?.masterVolume ?? (this.trackConfigs[+track]?.sound !== false ? 1 : 0)
     const synth = await getSynth(instrument)
+    synth.setMasterVolume(existingVol)
     this.synths[+track] = synth
   }
 
@@ -446,7 +448,35 @@ export class Player {
   }
 
   playNote(note: SongNote) {
-    this.synths[note.track].playNote(note.midiNote, note.velocity)
+    this.synths[note.track]?.playNote(note.midiNote, note.velocity)
+  }
+
+  playUserNote(midiNote: number, velocity = 127 / 2) {
+    const song = this.getSong()
+    let trackId = 0
+    if (song && Object.keys(this.trackConfigs).length > 0) {
+      const activeEntry =
+        Object.entries(this.trackConfigs).find(([_, config]) => config.practice && config.sound) ||
+        Object.entries(this.trackConfigs).find(([_, config]) => config.sound)
+      if (activeEntry) {
+        trackId = Number(activeEntry[0])
+      }
+    }
+    this.synths[trackId]?.playNote(midiNote, velocity)
+  }
+
+  stopUserNote(midiNote: number) {
+    const song = this.getSong()
+    let trackId = 0
+    if (song && Object.keys(this.trackConfigs).length > 0) {
+      const activeEntry =
+        Object.entries(this.trackConfigs).find(([_, config]) => config.practice && config.sound) ||
+        Object.entries(this.trackConfigs).find(([_, config]) => config.sound)
+      if (activeEntry) {
+        trackId = Number(activeEntry[0])
+      }
+    }
+    this.synths[trackId]?.stopNote(midiNote)
   }
 
   stopNotes(notes: Array<SongNote>) {
@@ -461,7 +491,9 @@ export class Player {
   updateTime_() {
     const backingTrack = this.getSong()?.backing
     if (backingTrack) {
-      const newTime = backingTrack.currentTime + getAudioContext().outputLatency
+      const audioCtx = getAudioContext() as any
+      const outputLatency = audioCtx?.outputLatency || 0
+      const newTime = backingTrack.currentTime + outputLatency
       this.currentSongTime = newTime
     }
 
